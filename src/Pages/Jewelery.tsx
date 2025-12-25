@@ -1,211 +1,191 @@
 import React, { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
+import { 
+  Loader2, Search, Zap, ShoppingBag, X, 
+  ChevronRight, ArrowUpDown, Filter, Check, Gem 
+} from "lucide-react";
+
+// API & Redux Actions
+import { useGetCategoriesQuery, useGetCategoryDetailsQuery } from "../features/Apis/Categories.APi";
+import { useGetAllProductsQuery, useGetProductMediaQuery } from "../features/Apis/products.Api";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 
-// --- TYPES ---
-interface Jewelry {
-  id: string;
-  name: string;
-  brand: string;
-  originalPrice: number;
-  discountedPrice: number;
-  image: string;
-  availableBranches: string[];
-  category: "Rings" | "Necklaces" | "Bracelets" | "Earrings" | "Watches";
-  material: "Gold" | "Silver" | "Diamond" | "Rose Gold";
-  badge?: string;
-  karat?: string;
-}
-
-// --- MASSIVE DATASET (20+ Items) ---
-const JEWELRY_DATA: Jewelry[] = [
-  // RINGS
-  { id: "j1", name: "Eternity Diamond Band", brand: "Anma Fine Jewelry", originalPrice: 1200, discountedPrice: 950, image: "https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=400&q=80", availableBranches: ["Westlands", "Nairobi Central"], category: "Rings", material: "Diamond", karat: "18K", badge: "PREMIUM" },
-  { id: "j2", name: "Classic Gold Chain", brand: "Anma Luxe", originalPrice: 450, discountedPrice: 450, image: "https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=400&q=80", availableBranches: ["Westlands"], category: "Necklaces", material: "Gold", karat: "22K", badge: "NEW" },
-  { id: "j3", name: "Sterling Silver Bracelet", brand: "Anma Essentials", originalPrice: 180, discountedPrice: 150, image: "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?auto=format&fit=crop&w=400&q=80", availableBranches: ["Mombasa", "Nairobi Central"], category: "Bracelets", material: "Silver", karat: "Sterling" },
-  { id: "j4", name: "Sapphire Solitaire Ring", brand: "Anma Fine Jewelry", originalPrice: 800, discountedPrice: 720, image: "https://images.unsplash.com/photo-1603561596112-0a132b757442?auto=format&fit=crop&w=400&q=80", availableBranches: ["Westlands"], category: "Rings", material: "Gold", karat: "18K" },
-  { id: "j5", name: "Rose Gold Infinity Ring", brand: "Anma Luxe", originalPrice: 300, discountedPrice: 250, image: "https://images.unsplash.com/photo-1543294001-f7cd5d7fb516?auto=format&fit=crop&w=400&q=80", availableBranches: ["Nairobi Central"], category: "Rings", material: "Rose Gold", karat: "14K" },
-
-  // WATCHES
-  { id: "w1", name: "Royal Oyster Gold Watch", brand: "Anma Timepieces", originalPrice: 2500, discountedPrice: 2100, image: "https://images.unsplash.com/photo-1524592094714-0f0654e20314?auto=format&fit=crop&w=400&q=80", availableBranches: ["Westlands"], category: "Watches", material: "Gold", badge: "HOT" },
-  { id: "w2", name: "Midnight Silver Chrono", brand: "Anma Timepieces", originalPrice: 600, discountedPrice: 550, image: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=400&q=80", availableBranches: ["Mombasa"], category: "Watches", material: "Silver" },
-  { id: "w3", name: "Diamond Bezel Quartz", brand: "Anma Timepieces", originalPrice: 3500, discountedPrice: 3500, image: "https://images.unsplash.com/photo-1542491595-3075c4962942?auto=format&fit=crop&w=400&q=80", availableBranches: ["Westlands"], category: "Watches", material: "Diamond", badge: "EXCLUSIVE" },
-
-  // NECKLACES
-  { id: "n1", name: "Pearl Drop Pendant", brand: "Anma Fine Jewelry", originalPrice: 220, discountedPrice: 190, image: "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?auto=format&fit=crop&w=400&q=80", availableBranches: ["Nairobi Central"], category: "Necklaces", material: "Silver", karat: "Sterling" },
-  { id: "n2", name: "Chunky Gold Link", brand: "Anma Essentials", originalPrice: 500, discountedPrice: 420, image: "https://images.unsplash.com/photo-1611085507273-038ad81bb699?auto=format&fit=crop&w=400&q=80", availableBranches: ["Westlands", "Mombasa"], category: "Necklaces", material: "Gold", karat: "18K" },
-  { id: "n3", name: "Diamond Heart Necklace", brand: "Anma Luxe", originalPrice: 1500, discountedPrice: 1300, image: "https://images.unsplash.com/photo-1599643477877-537ef5278533?auto=format&fit=crop&w=400&q=80", availableBranches: ["Westlands"], category: "Necklaces", material: "Diamond", badge: "TRENDING" },
-
-  // EARRINGS
-  { id: "e1", name: "Diamond Stud Earrings", brand: "Anma Luxe", originalPrice: 900, discountedPrice: 850, image: "https://images.unsplash.com/photo-1535633302704-b02f4fad253b?auto=format&fit=crop&w=400&q=80", availableBranches: ["Nairobi Central"], category: "Earrings", material: "Diamond" },
-  { id: "e2", name: "Gold Hoop 24mm", brand: "Anma Essentials", originalPrice: 120, discountedPrice: 100, image: "https://images.unsplash.com/photo-1590548784585-643d2b9f2922?auto=format&fit=crop&w=400&q=80", availableBranches: ["Westlands", "Mombasa"], category: "Earrings", material: "Gold", karat: "22K" },
-  { id: "e3", name: "Rose Gold Drop Earrings", brand: "Anma Fine Jewelry", originalPrice: 350, discountedPrice: 280, image: "https://images.unsplash.com/photo-1616593437250-06294d54b63e?auto=format&fit=crop&w=400&q=80", availableBranches: ["Nairobi Central"], category: "Earrings", material: "Rose Gold" },
-
-  // BRACELETS
-  { id: "b1", name: "Diamond Tennis Bracelet", brand: "Anma Luxe", originalPrice: 4000, discountedPrice: 3800, image: "https://images.unsplash.com/photo-1535633602704-b02f4fad253b?auto=format&fit=crop&w=400&q=80", availableBranches: ["Westlands"], category: "Bracelets", material: "Diamond", badge: "PREMIUM" },
-  { id: "b2", name: "Braided Gold Bangle", brand: "Anma Essentials", originalPrice: 600, discountedPrice: 540, image: "https://images.unsplash.com/photo-1611591437281-460bfbe1220a?auto=format&fit=crop&w=400&q=80", availableBranches: ["Mombasa"], category: "Bracelets", material: "Gold", karat: "18K" },
-  { id: "b3", name: "Silver Charm Bracelet", brand: "Anma Essentials", originalPrice: 150, discountedPrice: 120, image: "https://images.unsplash.com/photo-1573408301185-9146fe634ad0?auto=format&fit=crop&w=400&q=80", availableBranches: ["Nairobi Central"], category: "Bracelets", material: "Silver" },
-  
-  // EXTRA PRODUCTS
-  { id: "j6", name: "Gold Wedding Band", brand: "Anma Fine Jewelry", originalPrice: 400, discountedPrice: 350, image: "https://images.unsplash.com/photo-1589128777073-263566ae5e4d?auto=format&fit=crop&w=400&q=80", availableBranches: ["Westlands"], category: "Rings", material: "Gold" },
-  { id: "w4", name: "Lady Datejust Silver", brand: "Anma Timepieces", originalPrice: 1200, discountedPrice: 1100, image: "https://images.unsplash.com/photo-1508057198894-247b23fe5ade?auto=format&fit=crop&w=400&q=80", availableBranches: ["Nairobi Central"], category: "Watches", material: "Silver" },
-  { id: "n4", name: "Gold Choker", brand: "Anma Essentials", originalPrice: 280, discountedPrice: 200, image: "https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=400&q=80", availableBranches: ["Mombasa"], category: "Necklaces", material: "Gold" },
-];
-
-const BRANCHES = ["All Branches", "Westlands", "Nairobi Central", "Mombasa"];
-const MATERIALS = ["All Materials", "Gold", "Silver", "Diamond", "Rose Gold"];
-
-const JewelryPage: React.FC = () => {
-  const [searchTerm, setSearchTerm] = useState<string>("");
-  const [selectedBranch, setSelectedBranch] = useState<string>("All Branches");
-  const [selectedMaterial, setSelectedMaterial] = useState<string>("All Materials");
-  const [visibleCount, setVisibleCount] = useState<number>(12); // Initial visible products
-
-  const filteredJewelry = useMemo(() => {
-    return JEWELRY_DATA.filter((j) => {
-      const matchesSearch = j.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                            j.brand.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesBranch = selectedBranch === "All Branches" || j.availableBranches.includes(selectedBranch);
-      const matchesMaterial = selectedMaterial === "All Materials" || j.material === selectedMaterial;
-
-      return matchesSearch && matchesBranch && matchesMaterial;
-    });
-  }, [searchTerm, selectedBranch, selectedMaterial]);
-
-  const loadMore = () => setVisibleCount((prev) => prev + 8);
+// --- SUB-COMPONENT: LUXURY JEWELLERY CARD ---
+const JewelleryCard = ({ product, navigate }: { product: any, navigate: any }) => {
+  const { data: media, isLoading: mediaLoading } = useGetProductMediaQuery(product.id);
+  const fallbackImage = "https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?q=80&w=800";
+  const displayImg = media?.find((m: any) => m.type.includes("image"))?.url || fallbackImage;
+  const activeDeal = product.flashDeals?.find((d: any) => d.isActive);
 
   return (
-    <main className="bg-[#0B0B0B] min-h-screen text-white">
+    <div className="group flex flex-col relative w-full cursor-pointer" onClick={() => navigate(`/product/${product.id}`)}>
+      <div className="relative aspect-[4/5] bg-[#0A0A0A] overflow-hidden border border-white/5 transition-all duration-700 group-hover:border-[#C9A24D]/30 shadow-2xl">
+        {mediaLoading ? (
+          <div className="absolute inset-0 flex items-center justify-center bg-[#050505]">
+            <Loader2 className="animate-spin text-[#C9A24D]/20" size={20} />
+          </div>
+        ) : (
+          <img 
+            src={displayImg} 
+            alt={product.name} 
+            className="w-full h-full object-cover transition-transform duration-[2.5s] ease-out group-hover:scale-110" 
+            onError={(e) => { (e.target as HTMLImageElement).src = fallbackImage; }}
+          />
+        )}
+        <div className="absolute top-3 left-3 z-20">
+          {activeDeal && (
+            <div className="bg-[#C9A24D] text-black text-[7px] md:text-[8px] font-black px-2 md:px-3 py-1 uppercase tracking-widest flex items-center gap-1 shadow-xl">
+              <Zap size={8} fill="black" /> RARE FIND
+            </div>
+          )}
+        </div>
+        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all duration-500 hidden lg:flex items-center justify-center">
+           <span className="bg-white text-black px-6 py-2.5 text-[8px] font-black uppercase tracking-[0.3em]">
+             View Piece
+           </span>
+        </div>
+      </div>
+      <div className="mt-5 space-y-1.5 px-1 text-center lg:text-left">
+        <p className="text-[9px] text-gray-500 uppercase tracking-widest">{product.subcategory?.name || "The Vault"}</p>
+        <h2 className="text-[12px] md:text-[14px] font-light tracking-[0.05em] text-white uppercase italic truncate">{product.name}</h2>
+        <span className="text-[13px] font-bold text-[#C9A24D]">
+          KES {parseFloat(activeDeal ? activeDeal.flashPrice : product.basePrice).toLocaleString()}
+        </span>
+      </div>
+    </div>
+  );
+};
+
+const JewelleryPage: React.FC = () => {
+  const navigate = useNavigate();
+  const [searchTerm, setSearchTerm] = useState<string>("");
+  const [selectedSubCat, setSelectedSubCat] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<"latest" | "price-low" | "price-high">("latest");
+  const [maxPrice, setMaxPrice] = useState<number>(500000);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+
+  // 1. DYNAMIC SEARCH: Get "Jewellery" Category ID (Search both spellings to be safe)
+  const { data: catSearch, isLoading: searchLoading } = useGetCategoriesQuery({ search: "Jewell" });
+  const JEWELLERY_ID = catSearch?.data?.find(c => c.name.toLowerCase().includes("jewell"))?.id;
+
+  // 2. FETCH DETAILS & PRODUCTS
+  const { data: categoryData, isLoading: catLoading } = useGetCategoryDetailsQuery(JEWELLERY_ID!, { skip: !JEWELLERY_ID });
+  const { data: productsData, isLoading: prodLoading } = useGetAllProductsQuery(
+    { categoryId: JEWELLERY_ID, limit: 100 }, 
+    { skip: !JEWELLERY_ID }
+  );
+
+  const processedItems = useMemo(() => {
+    const rawList = Array.isArray(productsData) ? productsData : productsData?.data || [];
+    let filtered = rawList.filter((p: any) => {
+      const currentPrice = p.flashDeals?.some((d: any) => d.isActive) 
+        ? parseFloat(p.flashDeals.find((d: any) => d.isActive).flashPrice) 
+        : parseFloat(p.basePrice);
+      
+      const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSub = selectedSubCat === "all" || p.subcategoryId === selectedSubCat;
+      const matchesPrice = currentPrice <= maxPrice;
+      return matchesSearch && matchesSub && matchesPrice;
+    });
+
+    return filtered.sort((a: any, b: any) => {
+        const priceA = a.flashDeals?.some((d: any) => d.isActive) ? parseFloat(a.flashDeals.find((d: any) => d.isActive).flashPrice) : parseFloat(a.basePrice);
+        const priceB = b.flashDeals?.some((d: any) => d.isActive) ? parseFloat(b.flashDeals.find((d: any) => d.isActive).flashPrice) : parseFloat(b.basePrice);
+        if (sortBy === "price-low") return priceA - priceB;
+        if (sortBy === "price-high") return priceB - priceA;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+  }, [searchTerm, selectedSubCat, sortBy, maxPrice, productsData]);
+
+  if (searchLoading || (JEWELLERY_ID && (catLoading || prodLoading))) return (
+    <div className="h-screen bg-[#050505] flex flex-col items-center justify-center">
+      <Loader2 className="text-[#C9A24D] animate-spin mb-4" size={24} />
+      <span className="text-[#C9A24D] text-[9px] uppercase tracking-[0.5em] font-black italic">OPENING THE VAULT</span>
+    </div>
+  );
+
+  return (
+    <main className="bg-[#050505] min-h-screen text-white">
       <Navbar />
 
-      {/* HERO / SEARCH SECTION */}
-      <section className="bg-[#141414] py-16 px-4 border-b border-[#C9A24D]/20">
-        <div className="max-w-7xl mx-auto text-center">
-          <h1 className="text-4xl md:text-5xl font-bold text-[#C9A24D] mb-4 uppercase tracking-tighter italic">The Jewelry Vault</h1>
-          <p className="text-gray-400 mb-10 tracking-[0.3em] text-[10px] uppercase font-bold">Timeless Pieces • Exceptional Craft</p>
+      <header className="pt-32 md:pt-48 pb-12 md:pb-24 px-4 md:px-6 relative border-b border-white/5 overflow-hidden">
+        {/* Ghost Background Text */}
+        <div className="absolute top-10 left-0 text-[70px] md:text-[180px] font-black text-white/[0.02] select-none pointer-events-none tracking-tighter uppercase whitespace-nowrap">
+            TIMELESS ATELIERS
+        </div>
+
+        <div className="max-w-7xl mx-auto relative z-10">
+          <div className="flex items-center gap-3 mb-6">
+             <div className="h-[1px] w-8 bg-[#C9A24D]" />
+             <span className="text-[#C9A24D] text-[10px] font-black uppercase tracking-[0.5em]">The Jewellery Edit</span>
+          </div>
           
-          <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-4">
-            <select
-              className="bg-[#0B0B0B] border border-[#C9A24D]/30 rounded-full py-4 px-6 focus:outline-none text-white appearance-none cursor-pointer"
-              value={selectedBranch}
-              onChange={(e) => {setSelectedBranch(e.target.value); setVisibleCount(12);}}
-            >
-              {BRANCHES.map(b => <option key={b} value={b}>{b === "All Branches" ? "Filter by Store" : b}</option>)}
-            </select>
-
-            <select
-              className="bg-[#0B0B0B] border border-[#C9A24D]/30 rounded-full py-4 px-6 focus:outline-none text-white appearance-none cursor-pointer"
-              value={selectedMaterial}
-              onChange={(e) => {setSelectedMaterial(e.target.value); setVisibleCount(12);}}
-            >
-              {MATERIALS.map(m => <option key={m} value={m}>{m === "All Materials" ? "All Metals" : m}</option>)}
-            </select>
-
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search catalog..."
-                className="w-full bg-[#0B0B0B] border border-[#C9A24D]/30 rounded-full py-4 px-12 focus:outline-none text-white shadow-lg"
-                value={searchTerm}
-                onChange={(e) => {setSearchTerm(e.target.value); setVisibleCount(12);}}
+          <h1 className="text-4xl md:text-[100px] font-extralight tracking-tighter uppercase leading-[0.9] mb-8">
+            ANMA <span className="text-[#C9A24D] font-black italic">Jewellery</span> <br className="hidden md:block" /> 
+            <span className="text-white/20 md:mx-2">&</span> <span className="text-white">Ateliers</span>
+          </h1>
+          
+          <div className="flex flex-col md:flex-row gap-6 w-full mt-10">
+            <div className="relative border-b border-white/10 flex items-center flex-1 group">
+              <Search size={14} className="text-gray-700 transition-colors group-focus-within:text-[#C9A24D]" />
+              <input 
+                type="text" 
+                placeholder="SEARCH THE VAULT..." 
+                className="bg-transparent py-4 pl-4 focus:outline-none text-[11px] uppercase tracking-[0.2em] w-full" 
+                value={searchTerm} 
+                onChange={(e) => setSearchTerm(e.target.value)} 
               />
-              <span className="absolute left-5 top-4.5 text-[#C9A24D]">🔍</span>
+            </div>
+            <div className="flex gap-4 items-center">
+                <button 
+                  onClick={() => setIsFilterOpen(true)} 
+                  className="flex items-center gap-3 border border-white/10 px-8 py-4 text-[10px] tracking-widest uppercase font-bold text-[#C9A24D] hover:bg-white hover:text-black transition-all"
+                >
+                   REFINE ARCHIVE <Filter size={14} />
+                </button>
             </div>
           </div>
         </div>
-      </section>
+      </header>
 
-      {/* PRODUCT GRID SECTION */}
-      <div className="max-w-7xl mx-auto px-4 py-12 flex flex-col lg:flex-row gap-10">
-        
-        {/* SIDEBAR */}
-        <aside className="w-full lg:w-56 flex-shrink-0">
-          <div className="sticky top-24">
-            <h3 className="text-[#C9A24D] font-bold text-xs uppercase mb-6 tracking-widest border-b border-white/10 pb-2">Collections</h3>
-            <div className="space-y-4 text-gray-500 text-sm">
-              {["Full Vault", "Engagement", "Luxury Timepieces", "Gold Chains", "Diamond Series"].map(cat => (
-                <div key={cat} className="hover:text-white cursor-pointer transition-colors border-l-2 border-transparent hover:border-[#C9A24D] pl-4">
-                  {cat}
-                </div>
-              ))}
+      <div className="max-w-7xl mx-auto px-4 md:px-6 py-12 md:py-24 grid grid-cols-1 lg:grid-cols-12 gap-20">
+        <aside className="hidden lg:block lg:col-span-3">
+          <div className="sticky top-40 space-y-16">
+            <div>
+                <h3 className="text-white text-[10px] font-black uppercase tracking-[0.5em] mb-8 pb-4 border-b border-white/5">Collections</h3>
+                <ul className="space-y-6">
+                  <li 
+                    onClick={() => setSelectedSubCat("all")} 
+                    className={`text-[10px] uppercase tracking-[0.3em] cursor-pointer transition-all flex items-center justify-between ${selectedSubCat === "all" ? "text-[#C9A24D]" : "text-gray-600 hover:text-white"}`}
+                  >
+                    All Masterpieces <ChevronRight size={10} className={selectedSubCat === "all" ? "opacity-100" : "opacity-0"} />
+                  </li>
+                  {categoryData?.subcategories?.map((sub: any) => (
+                    <li 
+                      key={sub.id} 
+                      onClick={() => setSelectedSubCat(sub.id)} 
+                      className={`text-[10px] uppercase tracking-[0.3em] cursor-pointer transition-all flex items-center justify-between ${selectedSubCat === sub.id ? "text-[#C9A24D]" : "text-gray-600 hover:text-white"}`}
+                    >
+                      {sub.name} <ChevronRight size={10} className={selectedSubCat === sub.id ? "opacity-100" : "opacity-0"} />
+                    </li>
+                  ))}
+                </ul>
             </div>
           </div>
         </aside>
 
-        {/* LISTINGS */}
-        <section className="flex-1">
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
-            {filteredJewelry.slice(0, visibleCount).map((item) => (
-              <div key={item.id} className="bg-[#141414] group rounded-md border border-white/5 overflow-hidden flex flex-col hover:border-[#C9A24D]/40 transition-all duration-300">
-                <div className="relative aspect-[3/4] overflow-hidden bg-[#1A1A1A]">
-                  <img 
-                    src={item.image} 
-                    alt={item.name} 
-                    className="w-full h-full object-cover grayscale-[30%] group-hover:grayscale-0 group-hover:scale-110 transition-all duration-1000"
-                  />
-                  {item.badge && (
-                    <span className="absolute top-3 left-3 bg-[#C9A24D] text-black text-[8px] font-black px-2 py-0.5 tracking-tighter">
-                      {item.badge}
-                    </span>
-                  )}
-                </div>
-
-                <div className="p-4 flex flex-col flex-grow text-center">
-                  <p className="text-[#C9A24D] text-[9px] uppercase font-bold tracking-[0.2em] mb-1">{item.brand}</p>
-                  <h3 className="text-xs font-medium h-9 line-clamp-2 mb-2 leading-tight">{item.name}</h3>
-                  
-                  <div className="flex justify-center gap-1 mb-4">
-                    <span className="text-[9px] text-gray-500 bg-black/40 px-2 py-0.5 rounded-sm">
-                      {item.material}
-                    </span>
-                    {item.karat && (
-                      <span className="text-[9px] text-[#C9A24D] bg-[#C9A24D]/10 px-2 py-0.5 rounded-sm font-bold">
-                        {item.karat}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="mt-auto">
-                    <div className="flex justify-center items-center gap-2 mb-4">
-                       <span className="text-base font-bold">KES {item.discountedPrice.toLocaleString()}</span>
-                       {item.discountedPrice < item.originalPrice && (
-                         <span className="text-gray-500 line-through text-[10px]">KES {item.originalPrice.toLocaleString()}</span>
-                       )}
-                    </div>
-                    
-                    <button className="w-full py-2.5 bg-transparent border border-white/20 hover:bg-[#C9A24D] hover:text-black hover:border-[#C9A24D] text-white text-[9px] font-bold uppercase tracking-widest transition-all">
-                      View Piece
-                    </button>
-                  </div>
-                </div>
-              </div>
+        <section className="lg:col-span-9">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-16">
+            {processedItems.map((p: any) => (
+              <JewelleryCard key={p.id} product={p} navigate={navigate} />
             ))}
           </div>
-
-          {/* LOAD MORE BUTTON */}
-          {visibleCount < filteredJewelry.length && (
-            <div className="mt-16 text-center">
-              <button 
-                onClick={loadMore}
-                className="px-10 py-4 bg-[#141414] border border-[#C9A24D]/40 text-[#C9A24D] text-[10px] font-black uppercase tracking-[0.3em] hover:bg-[#C9A24D] hover:text-black transition-all"
-              >
-                Load More Pieces
-              </button>
-            </div>
-          )}
-
-          {filteredJewelry.length === 0 && (
-            <div className="text-center py-32 bg-[#141414]/50 rounded-xl border border-dashed border-white/10">
-              <p className="text-gray-500 italic">"No pieces match your current vault selection..."</p>
-              <button onClick={() => {setSearchTerm(""); setSelectedMaterial("All Materials");}} className="mt-4 text-[#C9A24D] text-sm underline">Clear Filters</button>
-            </div>
-          )}
         </section>
       </div>
-
       <Footer />
     </main>
   );
 };
 
-export default JewelryPage;
+export default JewelleryPage;

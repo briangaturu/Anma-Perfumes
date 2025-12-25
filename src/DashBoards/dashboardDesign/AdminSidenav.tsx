@@ -2,32 +2,42 @@ import { NavLink } from "react-router-dom";
 import {
   TrendingUp,
   Users,
-  ClipboardList,
+  ShoppingBag,
   User,
   LogOut,
-  DollarSign,
-  Ticket,
+  Gem,
+  Tag,
   Camera,
-  Calendar,
-  FileText,
-  House,
+  Layers,
+  BarChart3,
+  Settings,
+  Star,
+  GoalIcon,
+  DecimalsArrowLeftIcon,
+  CameraIcon,
 } from "lucide-react";
 import { useDispatch } from "react-redux";
-import { clearCredentials } from "../../features/Auth/AuthSlice";
+import { clearCredentials } from "../../features/Auth/Auth.slice";
+import { MdCategory } from "react-icons/md";
 
 const navItems = [
-  { name: "Analytics", path: "analytics", icon: <TrendingUp className="text-indigo-400" /> },
-  { name: "Manage Users", path: "AllUsers", icon: <Users className="text-blue-400" /> },
-  { name: "Manage Bookings", path: "AllBookings", icon: <ClipboardList className="text-pink-500" /> },
-  { name: "Manage Venues", path: "Allvenues", icon: <House className="text-green-400" /> },
-  { name: "Manage Medias", path: "AllMedia", icon: <Camera className="text-yellow-400" /> },
-  { name: "Manage Events", path: "AllEvents", icon: <Calendar className="text-orange-400" /> },
-  { name: "Manage Payments", path: "AllPayments", icon: <DollarSign className="text-yellow-900" /> },
-  { name: "Manage Support Tickets", path: "supportTickets", icon: <Ticket className="text-purple-400" /> },
-  { name: "Manage Ticket Types", path: "ticketTypes", icon: <FileText className="text-teal-400" /> },
-  { name: "Sales Report", path: "SalesReports", icon: <User className="text-red-400" /> },
-  { name: "My Profile", path: "adminprofile", icon: <User className="text-purple-400" /> },
-  { name: "Logout", path: "#", icon: <LogOut className="text-red-500" /> },
+  { name: "MAnage category", path: "Manage-categories", icon: <MdCategory size={18} /> },
+   { name: "MAnage Products", path: "Manage-products", icon: <GoalIcon size={18} /> },
+   { name: "Manage Flashdeals", path: "flash-deals", icon: <DecimalsArrowLeftIcon size={18} /> },
+   { name: "Manage ProductMedias", path: "product-media", icon: <CameraIcon size={18} /> },
+    { name: "Manage Banners", path: "Manage-banners", icon: <CameraIcon size={18} /> },
+  { name: "Executive Summary", path: "analytics", icon: <TrendingUp size={18} /> },
+  { name: "Client Management", path: "AllUsers", icon: <Users size={18} /> },
+  { name: "Bespoke Orders", path: "AllBookings", icon: <ShoppingBag size={18} /> },
+  { name: "Fragrance Inventory", path: "Allvenues", icon: <Gem size={18} /> }, // Matches "Manage Perfumes"
+  { name: "Gallery Assets", path: "AllMedia", icon: <Camera size={18} /> },
+  { name: "Private Deals", path: "AllEvents", icon: <Tag size={18} /> }, // Matches Flash Deals
+  { name: "Financial Audits", path: "AllPayments", icon: <BarChart3 size={18} /> },
+  { name: "Concierge Tickets", path: "supportTickets", icon: <Star size={18} /> },
+  { name: "Collection Types", path: "ticketTypes", icon: <Layers size={18} /> }, // Subcategories/Types
+  { name: "Sales Reports", path: "SalesReports", icon: <BarChart3 size={18} /> },
+  { name: "Admin Profile", path: "adminprofile", icon: <User size={18} /> },
+  { name: "Logout", path: "#", icon: <LogOut size={18} /> },
 ];
 
 export const AdminSideNav = ({ onNavItemClick }: { onNavItemClick?: () => void }) => {
@@ -39,41 +49,57 @@ export const AdminSideNav = ({ onNavItemClick }: { onNavItemClick?: () => void }
   };
 
   return (
-    <aside className="h-full w-full p-4 bg-base-200 text-base-content space-y-2 overflow-y-auto rounded-lg shadow-md border border-blue-500 mt-17 border-r-2 border-b-4">
-      <h4 className="mt-1 mb-4 flex items-center justify-center text-xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 via-purple-500 to-yellow-500">
-        <span className="mr-2">🛠️</span>
-        Admin Panel
-        <span className="ml-2">👑</span>
-      </h4>
+    <aside className="h-full w-full p-6 bg-[#0B0B0B] text-white space-y-2 overflow-y-auto border-r border-[#C9A24D]/20">
+      {/* LUXURY LOGO AREA */}
+      <div className="mb-10 text-center">
+        <h4 className="text-sm font-black uppercase tracking-[0.4em] text-[#C9A24D]">
+          Maison Admin
+        </h4>
+        <div className="h-[1px] w-12 bg-[#C9A24D] mx-auto mt-2 opacity-50"></div>
+      </div>
 
-      {navItems.map((item, index) =>
-        item.name === "Logout" ? (
-          <button
-            key={index}
-            onClick={handleLogout}
-            className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-base-300 transition w-full text-left"
-            aria-label="Logout"
-          >
-            {item.icon}
-            <span className="font-chewy">{item.name}</span>
-          </button>
-        ) : (
-          <NavLink
-            key={index}
-            to={item.path}
-            onClick={onNavItemClick}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-4 py-2 rounded-lg transition hover:bg-base-300 ${
-                isActive ? "bg-base-300 font-semibold text-primary" : ""
-              }`
-            }
-            aria-label={`Go to ${item.name}`}
-          >
-            {item.icon}
-            <span className="font-chewy">{item.name}</span>
-          </NavLink>
-        )
-      )}
+      <nav className="space-y-1">
+        {navItems.map((item, index) =>
+          item.name === "Logout" ? (
+            <button
+              key={index}
+              onClick={handleLogout}
+              className="flex items-center gap-4 px-4 py-3 rounded-md hover:bg-red-950/20 text-red-500 transition-all w-full text-left group"
+              aria-label="Logout"
+            >
+              <span className="group-hover:scale-110 transition-transform">{item.icon}</span>
+              <span className="text-[11px] uppercase tracking-widest font-bold">{item.name}</span>
+            </button>
+          ) : (
+            <NavLink
+              key={index}
+              to={item.path}
+              onClick={onNavItemClick}
+              className={({ isActive }) =>
+                `flex items-center gap-4 px-4 py-3 rounded-md transition-all group ${
+                  isActive 
+                    ? "bg-[#C9A24D]/10 text-[#C9A24D] border-l-2 border-[#C9A24D]" 
+                    : "text-gray-500 hover:text-white hover:bg-white/5"
+                }`
+              }
+            >
+              <span className={`transition-transform group-hover:scale-110 ${
+                index % 2 === 0 ? "text-[#C9A24D]" : "text-[#A68943]"
+              }`}>
+                {item.icon}
+              </span>
+              <span className="text-[11px] uppercase tracking-[0.15em] font-medium">
+                {item.name}
+              </span>
+            </NavLink>
+          )
+        )}
+      </nav>
+
+      {/* FOOTER DECOR */}
+      <div className="pt-10 opacity-20 text-center">
+        <p className="text-[9px] uppercase tracking-[0.5em] text-[#C9A24D]">Royal Oud Edition</p>
+      </div>
     </aside>
   );
 };

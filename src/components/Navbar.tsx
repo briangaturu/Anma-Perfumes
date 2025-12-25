@@ -89,7 +89,7 @@ const Navbar: React.FC = () => {
 
   const dashboardConfig = useMemo(() => {
     if (role === "SUPER_ADMIN" || role === "BRANCH_MANAGER") {
-      return { path: "/dashboard", label: "Admin Dashboard" };
+      return { path: "/Admin-dashboard", label: "Admin Dashboard" };
     }
     return { path: "/customer-dashboard", label: "Customer Dashboard" };
   }, [role]);

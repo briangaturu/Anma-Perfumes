@@ -3,14 +3,68 @@ import { useParams, Link } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import { 
   ShoppingCart, ShieldCheck, Truck, RotateCcw, 
-  Star, ChevronRight, PlayCircle, Clock, ArrowLeft, AlertTriangle 
+  Star, ChevronRight, PlayCircle, Clock, AlertTriangle, 
+  Loader2, ExternalLink 
 } from "lucide-react";
 
 // API & Redux Actions
-import { useGetProductDetailsQuery, useGetAllProductsQuery } from "../features/Apis/products.Api";
+import { 
+    useGetProductDetailsQuery, 
+    useGetAllProductsQuery, 
+    useGetProductMediaQuery 
+} from "../features/Apis/products.Api";
 import { useGetCategoryDetailsQuery } from "../features/Apis/Categories.APi";
 import { addToCart } from "../features/Cart/cartSlice";
 import Navbar from "../components/Navbar";
+
+// --- ENHANCED SUB-COMPONENT FOR SIMILAR PRODUCTS ---
+const SimilarProductCard = ({ item }: { item: any }) => {
+  const { data: media, isLoading: mediaLoading } = useGetProductMediaQuery(item.id);
+
+  const displayImage = media?.find((m: any) => m.type === "image")?.url 
+    || "https://images.unsplash.com/photo-1590156221122-c4465fe46b70?auto=format&fit=crop&q=80&w=800";
+
+  return (
+    <Link to={`/product/${item.id}`} className="group relative block">
+      {/* Cinematic Portrait Container */}
+      <div className="relative aspect-[4/5] bg-[#0A0A0A] rounded-sm overflow-hidden border border-white/5 transition-all duration-700 group-hover:border-[#C9A24D]/40 group-hover:shadow-[0_20px_50px_rgba(0,0,0,0.8)]">
+        
+        {mediaLoading ? (
+            <div className="absolute inset-0 flex items-center justify-center">
+                <Loader2 className="animate-spin text-[#C9A24D]/20" size={20} />
+            </div>
+        ) : (
+            <img 
+                src={displayImage} 
+                className="w-full h-full object-cover transition-transform duration-[2s] ease-out group-hover:scale-110" 
+                alt={item.name} 
+            />
+        )}
+
+        {/* Glassmorphism Action Bar */}
+        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-500" />
+        <div className="absolute bottom-0 left-0 right-0 p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-out">
+            <div className="bg-white/10 backdrop-blur-md border border-white/10 text-white text-[9px] font-black uppercase tracking-[0.3em] py-3 text-center flex items-center justify-center gap-2">
+                View Masterpiece <ExternalLink size={10} />
+            </div>
+        </div>
+      </div>
+
+      {/* Details Section */}
+      <div className="mt-5 space-y-1 px-1">
+        <div className="flex justify-between items-center">
+            <h4 className="text-[10px] uppercase text-white/40 tracking-[0.2em] font-light group-hover:text-white transition-colors duration-300 truncate pr-2">
+                {item.name}
+            </h4>
+            <div className="h-[1px] w-0 group-hover:w-6 bg-[#C9A24D] transition-all duration-500" />
+        </div>
+        <p className="text-xs font-bold text-[#C9A24D] tracking-tight">
+            KES {parseFloat(item.basePrice).toLocaleString()}
+        </p>
+      </div>
+    </Link>
+  );
+};
 
 const ProductDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -19,13 +73,9 @@ const ProductDetailPage: React.FC = () => {
   const [selectedMediaIdx, setSelectedMediaIdx] = useState(0);
   const [timeLeft, setTimeLeft] = useState({ hours: 0, mins: 0, secs: 0 });
 
-  // 1. Core Data Fetching
   const { data: product, isLoading, isError } = useGetProductDetailsQuery(id!);
-  
-  // Logic: Only consider the deal active if the isActive flag is true
   const activeDeal = product?.flashDeals?.find((d: any) => d.isActive);
 
-  // 2. Contextual Data
   const { data: similarData } = useGetAllProductsQuery(
     { categoryId: product?.categoryId, limit: 6 }, 
     { skip: !product?.categoryId }
@@ -37,7 +87,7 @@ const ProductDetailPage: React.FC = () => {
   const similarProducts = similarData?.data?.filter((p: any) => p.id !== id) || [];
   const currentMedia = product?.media?.[selectedMediaIdx];
 
-  // 3. Stock & Timer Logic (Only if flash deal exists)
+  // Stock & Timer Logic
   const totalStock = activeDeal ? activeDeal.dealStock : 0;
   const soldUnits = activeDeal ? activeDeal.unitsSold : 0;
   const remainingStock = totalStock - soldUnits;
@@ -64,7 +114,6 @@ const ProductDetailPage: React.FC = () => {
     setSelectedMediaIdx(0);
   }, [id]);
 
-  // 4. Add to Cart Handler
   const handleAddToCart = () => {
     if (!product) return;
     const finalPrice = activeDeal ? parseFloat(activeDeal.flashPrice) : parseFloat(product.basePrice);
@@ -96,7 +145,6 @@ const ProductDetailPage: React.FC = () => {
       <Navbar />
 
       <main className="max-w-7xl mx-auto px-4 pt-32 pb-16">
-        {/* --- BREADCRUMBS --- */}
         <nav className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-white/30 mb-8 overflow-hidden whitespace-nowrap">
           <Link to="/" className="hover:text-[#C9A24D]">Store</Link>
           <ChevronRight size={10} />
@@ -107,7 +155,6 @@ const ProductDetailPage: React.FC = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           
-          {/* --- LEFT: MEDIA (Image/Video) --- */}
           <div className="lg:col-span-5 space-y-4">
             <div className="bg-[#111] rounded-2xl border border-white/5 overflow-hidden shadow-2xl relative">
               <div className="aspect-square flex items-center justify-center bg-[#0D0D0D]">
@@ -128,7 +175,7 @@ const ProductDetailPage: React.FC = () => {
                     selectedMediaIdx === idx ? "border-[#C9A24D]" : "border-white/5 opacity-40 hover:opacity-100"
                   }`}
                 >
-                  <img src={m.type.includes("video") ? product.media?.[0]?.url : m.url} className="w-full h-full object-cover" alt="thumb" />
+                  <img src={m.type.includes("video") ? (product.media?.find((img:any) => img.type === 'image')?.url || m.url) : m.url} className="w-full h-full object-cover" alt="thumb" />
                   {m.type.includes("video") && (
                     <div className="absolute inset-0 flex items-center justify-center bg-black/40">
                       <PlayCircle size={20} className="text-[#C9A24D]" />
@@ -139,7 +186,6 @@ const ProductDetailPage: React.FC = () => {
             </div>
           </div>
 
-          {/* --- CENTER: PRICING & BUYING --- */}
           <div className="lg:col-span-4 flex flex-col">
             <h1 className="text-4xl font-extralight tracking-tight mb-2 leading-tight uppercase">{product.name}</h1>
             <div className="flex items-center gap-2 mb-8">
@@ -149,9 +195,7 @@ const ProductDetailPage: React.FC = () => {
               <span className="text-[9px] text-white/20 uppercase tracking-[0.2em] font-bold italic">Bespoke Collection</span>
             </div>
 
-            {/* Price & Scarcity Card */}
             <div className="bg-[#111] rounded-2xl border border-white/10 overflow-hidden shadow-2xl mb-8">
-              {/* Only show timer if deal is active */}
               {activeDeal && (
                 <div className="bg-[#C9A24D] px-5 py-2 flex items-center justify-between">
                   <span className="text-black font-black text-[9px] uppercase tracking-[0.2em] flex items-center gap-2">
@@ -175,10 +219,10 @@ const ProductDetailPage: React.FC = () => {
                   )}
                 </div>
                 
-                {/* Visual price label */}
-                <p className="text-[10px] text-white/30 uppercase tracking-widest mb-6">Retail Price (Inc. Taxes)</p>
+                <p className="text-[10px] text-white/30 uppercase tracking-widest mb-6">
+                    {activeDeal ? "Limited Time Flash Price" : "Standard Retail Price"} (Inc. Taxes)
+                </p>
 
-                {/* Stock Indicator - Only show for Active Flash Deals */}
                 {activeDeal && (
                   <div className="bg-white/5 border border-white/5 rounded-xl p-4 space-y-3">
                     <div className="flex justify-between items-center">
@@ -217,7 +261,6 @@ const ProductDetailPage: React.FC = () => {
             </button>
           </div>
 
-          {/* --- RIGHT: TRUST COLUMN --- */}
           <div className="lg:col-span-3">
             <div className="bg-[#111] p-6 rounded-2xl border border-white/5 space-y-8 shadow-2xl sticky top-32">
               <h3 className="text-[10px] font-bold text-[#C9A24D] uppercase tracking-[0.4em] mb-4 border-b border-white/5 pb-2">Service Excellence</h3>
@@ -237,23 +280,33 @@ const ProductDetailPage: React.FC = () => {
           </div>
         </div>
 
-        {/* --- SIMILAR PRODUCTS --- */}
+        {/* --- BEAUTIFIED SIMILAR PRODUCTS SECTION --- */}
         {similarProducts.length > 0 && (
-          <section className="mt-24 border-t border-white/5 pt-16">
-            <div className="flex items-center justify-between mb-10">
-              <h2 className="text-xs font-bold uppercase tracking-[0.4em]">Similar <span className="text-[#C9A24D]">Creations</span></h2>
-              <Link to="/perfumes" className="text-[10px] text-[#C9A24D] hover:underline uppercase font-bold tracking-widest">View All</Link>
+          <section className="mt-40 border-t border-white/5 pt-24 relative overflow-hidden">
+             {/* Decorative Background Text */}
+             <div className="absolute top-10 left-0 text-[140px] font-black text-white/[0.02] select-none pointer-events-none tracking-tighter uppercase whitespace-nowrap">
+                The Collection The Collection
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
-              {similarProducts.map((item: any) => (
-                <Link key={item.id} to={`/product/${item.id}`} className="group block">
-                  <div className="aspect-square bg-[#111] border border-white/5 rounded-2xl overflow-hidden mb-3 p-6 flex items-center justify-center transition-all group-hover:border-[#C9A24D]/30">
-                    <img src={item.media?.[0]?.url} className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-700" alt={item.name} />
-                  </div>
-                  <h4 className="text-[10px] uppercase text-white/50 truncate tracking-tighter group-hover:text-white">{item.name}</h4>
-                  <p className="text-sm font-bold text-[#C9A24D] mt-1">KES {parseFloat(item.basePrice).toLocaleString()}</p>
-                </Link>
-              ))}
+
+            <div className="relative z-10">
+                <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-6">
+                    <div>
+                        <span className="text-[#C9A24D] text-[10px] font-black uppercase tracking-[0.5em] block mb-3">Curated Selection</span>
+                        <h2 className="text-4xl font-extralight uppercase tracking-tighter">
+                            Similar <span className="text-[#C9A24D] font-black italic">Creations</span>
+                        </h2>
+                    </div>
+                    <Link to="/perfumes" className="group flex items-center gap-4 text-[10px] text-white/40 hover:text-[#C9A24D] uppercase font-bold tracking-[0.4em] transition-all">
+                        View Complete Archive
+                        <div className="w-10 h-[1px] bg-white/10 group-hover:bg-[#C9A24D] group-hover:w-16 transition-all duration-500" />
+                    </Link>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-10 gap-y-16">
+                {similarProducts.slice(0, 5).map((item: any) => (
+                    <SimilarProductCard key={item.id} item={item} />
+                ))}
+                </div>
             </div>
           </section>
         )}

@@ -1,194 +1,285 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { 
+  Loader2, Search, SlidersHorizontal, 
+  Zap, ShoppingBag, X, ChevronRight, ArrowUpDown, Filter, Check
+} from "lucide-react";
+
+// API Hooks
+import { useGetCategoriesQuery, useGetCategoryDetailsQuery } from "../features/Apis/Categories.APi";
+import { useGetAllProductsQuery, useGetProductMediaQuery } from "../features/Apis/products.Api";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
-import { useGetCategoryDetailsQuery } from "../features/Apis/Categories.APi";
-import { useGetAllProductsQuery } from "../features/Apis/products.Api";
 
-const PERFUME_CATEGORY_ID = "41b8ee5a-b37c-4428-b60b-ce15e4a30d6e";
+// --- SUB-COMPONENT: LUXURY PRODUCT CARD ---
+const PerfumeCard = ({ product, navigate }: { product: any, navigate: any }) => {
+  const { data: media, isLoading: mediaLoading } = useGetProductMediaQuery(product.id);
+  const fallbackImage = "https://images.unsplash.com/photo-1594035910387-fea47794261f?q=80&w=800";
+  const displayImg = media?.find((m: any) => m.type.includes("image"))?.url || fallbackImage;
+  const activeDeal = product.flashDeals?.find((d: any) => d.isActive);
 
-type SortOption = "latest" | "price-low" | "price-high";
+  return (
+    <div className="group flex flex-col relative w-full cursor-pointer" onClick={() => navigate(`/product/${product.id}`)}>
+      <div className="relative aspect-[4/5] bg-[#0A0A0A] overflow-hidden border border-white/5 transition-all duration-700 group-hover:border-[#C9A24D]/30 shadow-2xl">
+        {mediaLoading ? (
+          <div className="absolute inset-0 flex items-center justify-center bg-[#050505]">
+            <Loader2 className="animate-spin text-[#C9A24D]/20" size={20} />
+          </div>
+        ) : (
+          <img 
+            src={displayImg} 
+            alt={product.name} 
+            className="w-full h-full object-cover transition-transform duration-[2.5s] ease-out group-hover:scale-110" 
+            onError={(e) => { (e.target as HTMLImageElement).src = fallbackImage; }}
+          />
+        )}
+        <div className="absolute top-3 left-3 z-20">
+          {activeDeal && (
+            <div className="bg-[#C9A24D] text-black text-[7px] md:text-[8px] font-black px-2 md:px-3 py-1 uppercase tracking-widest flex items-center gap-1">
+              <Zap size={8} fill="black" /> Offer
+            </div>
+          )}
+        </div>
+        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all duration-500 hidden lg:flex items-center justify-center">
+           <span className="bg-white text-black px-6 py-2.5 text-[8px] font-black uppercase tracking-[0.3em]">
+             Discover Scent
+           </span>
+        </div>
+      </div>
+      <div className="mt-5 space-y-1.5 px-1">
+        <p className="text-[9px] text-gray-500 uppercase tracking-widest">{product.subcategory?.name || "Parfum"}</p>
+        <h2 className="text-[12px] md:text-[14px] font-light tracking-[0.05em] text-white uppercase italic truncate">{product.name}</h2>
+        <span className="text-[13px] font-bold text-[#C9A24D]">
+          KES {parseFloat(activeDeal ? activeDeal.flashPrice : product.basePrice).toLocaleString()}
+        </span>
+      </div>
+    </div>
+  );
+};
 
+// --- MAIN PAGE COMPONENT ---
 const PerfumesPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [selectedSubCat, setSelectedSubCat] = useState<string>("all");
-  const [sortBy, setSortBy] = useState<SortOption>("latest");
+  const [sortBy, setSortBy] = useState<"latest" | "price-low" | "price-high">("latest");
+  const [maxPrice, setMaxPrice] = useState<number>(250000);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
-  // 1. DATA FETCHING
-  const { data: categoryData, isLoading: catLoading } = useGetCategoryDetailsQuery(PERFUME_CATEGORY_ID);
-  const { data: productsData, isLoading: prodLoading } = useGetAllProductsQuery({ 
-    categoryId: PERFUME_CATEGORY_ID,
-    limit: 100 
-  });
+  // 1. DYNAMIC SEARCH: Fetch Category ID for "Perfumes"
+  const { data: catSearch, isLoading: searchLoading } = useGetCategoriesQuery({ search: "Perfumes" });
+  const PERFUME_ID = catSearch?.data?.find(c => c.name.toLowerCase() === "perfumes")?.id;
 
-  // 2. FLASH DEAL HELPER
-  const getActiveFlashDeal = (product: any) => {
-    if (!product.flashDeals || product.flashDeals.length === 0) return null;
-    const now = new Date();
-    return product.flashDeals.find((deal: any) => {
-      return deal.isActive && now >= new Date(deal.startTime) && now <= new Date(deal.endTime);
-    });
-  };
+  // 2. FETCH DATA using Dynamic ID
+  const { data: categoryData, isLoading: catLoading } = useGetCategoryDetailsQuery(PERFUME_ID!, { skip: !PERFUME_ID });
+  const { data: productsData, isLoading: prodLoading } = useGetAllProductsQuery(
+    { categoryId: PERFUME_ID, limit: 100 }, 
+    { skip: !PERFUME_ID }
+  );
 
-  // 3. FILTERING & SORTING LOGIC
   const processedPerfumes = useMemo(() => {
-    // FIX: If productsData is already the array, use it. Otherwise, check for .data
     const rawList = Array.isArray(productsData) ? productsData : productsData?.data || [];
-
+    
     let filtered = rawList.filter((p: any) => {
+      const currentPrice = p.flashDeals?.some((d: any) => d.isActive) 
+        ? parseFloat(p.flashDeals.find((d: any) => d.isActive).flashPrice) 
+        : parseFloat(p.basePrice);
+      
       const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesSubCat = selectedSubCat === "all" || p.subcategoryId === selectedSubCat;
-      return matchesSearch && matchesSubCat;
+      const matchesSub = selectedSubCat === "all" || p.subcategoryId === selectedSubCat;
+      const matchesPrice = currentPrice <= maxPrice;
+      
+      return matchesSearch && matchesSub && matchesPrice;
     });
 
     return filtered.sort((a: any, b: any) => {
-      const dealA = getActiveFlashDeal(a);
-      const dealB = getActiveFlashDeal(b);
-      const priceA = dealA ? parseFloat(dealA.flashPrice) : parseFloat(a.basePrice);
-      const priceB = dealB ? parseFloat(dealB.flashPrice) : parseFloat(b.basePrice);
+        const priceA = a.flashDeals?.some((d: any) => d.isActive) ? parseFloat(a.flashDeals.find((d: any) => d.isActive).flashPrice) : parseFloat(a.basePrice);
+        const priceB = b.flashDeals?.some((d: any) => d.isActive) ? parseFloat(b.flashDeals.find((d: any) => d.isActive).flashPrice) : parseFloat(b.basePrice);
 
-      if (sortBy === "price-low") return priceA - priceB;
-      if (sortBy === "price-high") return priceB - priceA;
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        if (sortBy === "price-low") return priceA - priceB;
+        if (sortBy === "price-high") return priceB - priceA;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     });
-  }, [searchTerm, selectedSubCat, sortBy, productsData]);
+  }, [searchTerm, selectedSubCat, sortBy, maxPrice, productsData]);
 
-  if (catLoading || prodLoading) return (
-    <div className="h-screen bg-[#0B0B0B] flex items-center justify-center text-[#C9A24D] uppercase tracking-[0.5em] animate-pulse">
-      Curating Collection...
+  if (searchLoading || (PERFUME_ID && (catLoading || prodLoading))) return (
+    <div className="h-screen bg-[#050505] flex flex-col items-center justify-center">
+      <Loader2 className="text-[#C9A24D] animate-spin mb-4" size={24} />
+      <span className="text-[#C9A24D] text-[9px] uppercase tracking-[0.5em] font-black italic">FETCHING SCENT ARCHIVE</span>
     </div>
   );
 
   return (
-    <main className="bg-[#0B0B0B] min-h-screen text-white font-sans">
+    <main className="bg-[#050505] min-h-screen text-white">
       <Navbar />
 
-      <header className="pt-32 pb-12 px-6 border-b border-[#C9A24D]/10 bg-[#0d0d0d]">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-end gap-8">
-          <div>
-            <h1 className="text-5xl md:text-7xl font-light italic mb-2 tracking-tighter uppercase">
-              The <span className="text-[#C9A24D] not-italic font-bold">Fragrance</span> Gallery
-            </h1>
-            <p className="text-gray-500 uppercase text-[10px] tracking-[0.4em] font-bold">
-              {categoryData?.description || "Exquisite Selection"}
-            </p>
-          </div>
+      <header className="pt-32 md:pt-48 pb-12 md:pb-24 px-4 md:px-6 relative border-b border-white/5 overflow-hidden">
+        {/* Decorative Background Text */}
+        <div className="absolute top-10 left-0 text-[100px] md:text-[180px] font-black text-white/[0.02] select-none pointer-events-none tracking-tighter uppercase whitespace-nowrap">
+            ANMA FRAGRANCE
+        </div>
 
-          <div className="flex flex-col sm:flex-row gap-6 w-full md:w-auto">
-            <div className="relative border-b border-white/20 min-w-[200px]">
-              <input
-                type="text"
-                placeholder="SEARCH..."
-                className="bg-transparent py-2 focus:outline-none text-[11px] uppercase tracking-widest w-full text-white"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+        <div className="max-w-7xl mx-auto relative z-10">
+          <span className="text-[#C9A24D] text-[8px] md:text-[10px] font-black uppercase tracking-[0.5em] block mb-4 md:mb-6">Established 2024</span>
+          <h1 className="text-4xl md:text-[100px] font-extralight tracking-tighter uppercase leading-[0.9] mb-8">
+            ANMA <span className="text-[#C9A24D] font-black italic">Perfumes</span> <br className="hidden md:block" /> 
+            <span className="text-white/20 md:mx-2">&</span> <span className="text-white">Jewelry</span>
+          </h1>
+          
+          <div className="flex flex-col md:flex-row gap-4 w-full mt-10">
+            <div className="relative border-b border-white/10 flex items-center flex-1 group">
+              <Search size={14} className="text-gray-700 transition-colors group-focus-within:text-[#C9A24D]" />
+              <input 
+                type="text" 
+                placeholder="SEARCH SCENT PROFILE..." 
+                className="bg-transparent py-3 pl-4 focus:outline-none text-[10px] uppercase tracking-[0.2em] w-full" 
+                value={searchTerm} 
+                onChange={(e) => setSearchTerm(e.target.value)} 
               />
             </div>
-            <select 
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortOption)}
-              className="bg-transparent border-b border-white/20 py-2 text-[11px] uppercase tracking-widest focus:outline-none cursor-pointer text-[#C9A24D]"
-            >
-              <option value="latest" className="bg-black">Newest First</option>
-              <option value="price-low" className="bg-black">Price: Low-High</option>
-              <option value="price-high" className="bg-black">Price: High-Low</option>
-            </select>
+            <div className="flex gap-2">
+                <button 
+                  onClick={() => setIsFilterOpen(true)} 
+                  className="flex-1 md:flex-none flex items-center justify-center gap-3 border border-white/10 px-8 py-3 text-[10px] tracking-widest uppercase font-bold text-[#C9A24D] hover:bg-white hover:text-black transition-all"
+                >
+                   REFINE <Filter size={14} />
+                </button>
+                <div className="hidden md:flex items-center gap-3 border-b border-white/10 px-4">
+                    <ArrowUpDown size={14} className="text-gray-600" />
+                    <select 
+                      value={sortBy} 
+                      onChange={(e) => setSortBy(e.target.value as any)} 
+                      className="bg-transparent py-3 text-[10px] uppercase tracking-[0.2em] focus:outline-none cursor-pointer text-[#C9A24D] font-bold"
+                    >
+                        <option value="latest" className="bg-black">Newest First</option>
+                        <option value="price-high" className="bg-black">High Value</option>
+                        <option value="price-low" className="bg-black">Low Value</option>
+                    </select>
+                </div>
+            </div>
           </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-6 py-16 grid grid-cols-1 lg:grid-cols-12 gap-12">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 py-12 md:py-24 grid grid-cols-1 lg:grid-cols-12 gap-20">
         
-        {/* SIDEBAR */}
-        <aside className="lg:col-span-3">
-          <div className="sticky top-32">
-            <h3 className="text-white text-[11px] font-black uppercase tracking-[0.3em] mb-8 pb-4 border-b border-white/5">
-              Fragrance Families
-            </h3>
-            <ul className="space-y-6">
-              <li 
-                onClick={() => setSelectedSubCat("all")}
-                className={`text-[11px] uppercase tracking-[0.2em] cursor-pointer transition-all duration-300 flex items-center gap-4 ${
-                  selectedSubCat === "all" ? "text-[#C9A24D] translate-x-2" : "text-gray-500 hover:text-white"
-                }`}
-              >
-                <div className={`h-[1px] w-4 bg-[#C9A24D] transition-all ${selectedSubCat === "all" ? "opacity-100" : "opacity-0"}`} />
-                All Perfumes
-              </li>
-              {categoryData?.subcategories?.map((sub) => (
-                <li 
-                  key={sub.id}
-                  onClick={() => setSelectedSubCat(sub.id)}
-                  className={`text-[11px] uppercase tracking-[0.2em] cursor-pointer transition-all duration-300 flex items-center gap-4 ${
-                    selectedSubCat === sub.id ? "text-[#C9A24D] translate-x-2" : "text-gray-500 hover:text-white"
-                  }`}
-                >
-                  <div className={`h-[1px] w-4 bg-[#C9A24D] transition-all ${selectedSubCat === sub.id ? "opacity-100" : "opacity-0"}`} />
-                  {sub.name}
-                </li>
-              ))}
-            </ul>
+        {/* DESKTOP SIDEBAR */}
+        <aside className="hidden lg:block lg:col-span-3">
+          <div className="sticky top-40 space-y-16">
+            <div>
+                <h3 className="text-white text-[10px] font-black uppercase tracking-[0.5em] mb-8 pb-4 border-b border-white/5">Scent Families</h3>
+                <ul className="space-y-6">
+                  <li 
+                    onClick={() => setSelectedSubCat("all")} 
+                    className={`text-[10px] uppercase tracking-[0.3em] cursor-pointer transition-all flex items-center justify-between ${selectedSubCat === "all" ? "text-[#C9A24D]" : "text-gray-600 hover:text-white"}`}
+                  >
+                    All Collection <ChevronRight size={10} className={selectedSubCat === "all" ? "opacity-100" : "opacity-0"} />
+                  </li>
+                  {categoryData?.subcategories?.map((sub) => (
+                      <li 
+                        key={sub.id} 
+                        onClick={() => setSelectedSubCat(sub.id)} 
+                        className={`text-[10px] uppercase tracking-[0.3em] cursor-pointer transition-all flex items-center justify-between ${selectedSubCat === sub.id ? "text-[#C9A24D]" : "text-gray-600 hover:text-white"}`}
+                      >
+                        {sub.name} <ChevronRight size={10} className={selectedSubCat === sub.id ? "opacity-100" : "opacity-0"} />
+                    </li>
+                  ))}
+                </ul>
+            </div>
+
+            <div>
+              <div className="flex justify-between items-end mb-8 pb-4 border-b border-white/5">
+                <h3 className="text-white text-[10px] font-black uppercase tracking-[0.5em]">Investment</h3>
+                <span className="text-[11px] font-bold text-[#C9A24D]">KES {maxPrice.toLocaleString()}</span>
+              </div>
+              <input 
+                type="range" min="0" max="250000" step="1000" value={maxPrice} 
+                onChange={(e) => setMaxPrice(parseInt(e.target.value))} 
+                className="w-full accent-[#C9A24D] bg-white/10 h-[1px] appearance-none cursor-pointer" 
+              />
+            </div>
           </div>
         </aside>
 
-        {/* GRID */}
+        {/* PRODUCT GRID */}
         <section className="lg:col-span-9">
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-10 gap-y-16">
-            {processedPerfumes.map((product: any) => {
-              const activeDeal = getActiveFlashDeal(product);
-              
-              // IMAGE LOGIC: Targeting your 'image/jpeg' structure
-              const imageItem = product.media?.find((m: any) => m.type.includes("image"));
-              const displayImg = imageItem?.url || "https://via.placeholder.com/600x800";
-              
-              return (
-                <div key={product.id} className="group flex flex-col">
-                  <div className="relative aspect-[4/5] overflow-hidden bg-[#111] mb-6">
-                    <img 
-                      src={displayImg} 
-                      alt={product.name} 
-                      className="w-full h-full object-cover transition-transform duration-[1.5s] group-hover:scale-110" 
-                    />
-                    
-                    {activeDeal && (
-                      <div className="absolute top-0 right-0 bg-[#C9A24D] text-black text-[9px] font-black px-4 py-2 uppercase tracking-widest z-10">
-                        Private Offer
-                      </div>
-                    )}
-
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all duration-500 flex items-center justify-center">
-                      <button 
-                        onClick={() => navigate(`/product/${product.id}`)}
-                        className="bg-white text-black px-10 py-3 text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-[#C9A24D] transition-colors"
-                      >
-                        Discover
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <h2 className="text-[14px] font-light tracking-[0.1em] group-hover:text-[#C9A24D] transition-colors uppercase italic">
-                      {product.name}
-                    </h2>
-                    
-                    <div className="flex items-center gap-3">
-                      {activeDeal ? (
-                        <>
-                          <span className="text-white font-bold text-sm">KES {parseFloat(activeDeal.flashPrice).toLocaleString()}</span>
-                          <span className="text-gray-600 line-through text-[10px]">KES {parseFloat(product.basePrice).toLocaleString()}</span>
-                        </>
-                      ) : (
-                        <span className="text-sm font-light tracking-widest text-gray-400">KES {parseFloat(product.basePrice).toLocaleString()}</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-16 md:gap-y-24">
+            {processedPerfumes.map((p: any) => (
+              <PerfumeCard key={p.id} product={p} navigate={navigate} />
+            ))}
           </div>
+          {processedPerfumes.length === 0 && (
+             <div className="py-40 text-center opacity-40">
+                <ShoppingBag size={40} strokeWidth={1} className="mx-auto mb-6" />
+                <p className="text-[10px] uppercase tracking-[0.5em]">No pieces found in the current selection</p>
+             </div>
+          )}
         </section>
       </div>
+
+      {/* MOBILE FILTER DRAWER (REFINE MODAL) */}
+      <div className={`fixed inset-0 z-[100] transition-transform duration-700 ease-in-out ${isFilterOpen ? "translate-y-0" : "translate-y-full"}`}>
+         <div className="absolute inset-0 bg-black/98 backdrop-blur-3xl" onClick={() => setIsFilterOpen(false)} />
+         <div className="relative h-full flex flex-col p-10 overflow-y-auto">
+            <div className="flex justify-between items-center mb-16">
+               <span className="text-[#C9A24D] text-[11px] font-black uppercase tracking-[0.5em]">Refine Archive</span>
+               <button onClick={() => setIsFilterOpen(false)} className="p-3 bg-white/5 rounded-full transition-all hover:rotate-90"><X size={20} /></button>
+            </div>
+            
+            <div className="space-y-14">
+               <section>
+                  <p className="text-gray-600 text-[10px] uppercase tracking-[0.4em] mb-8">Sort Preference</p>
+                  <div className="space-y-3">
+                     {[
+                        { label: "Newest Arrivals", val: "latest" },
+                        { label: "Price: High to Low", val: "price-high" },
+                        { label: "Price: Low to High", val: "price-low" }
+                     ].map((opt) => (
+                        <button 
+                          key={opt.val} 
+                          onClick={() => setSortBy(opt.val as any)} 
+                          className={`w-full py-4 px-6 text-left text-[11px] uppercase tracking-widest border transition-all flex justify-between items-center ${sortBy === opt.val ? "border-[#C9A24D] text-[#C9A24D] bg-[#C9A24D]/5" : "border-white/5 text-white/30"}`}
+                        >
+                            {opt.label} {sortBy === opt.val && <Check size={14} />}
+                        </button>
+                     ))}
+                  </div>
+               </section>
+
+               <section>
+                  <div className="flex justify-between items-end mb-8">
+                    <p className="text-gray-600 text-[10px] uppercase tracking-[0.4em]">Price Ceiling</p>
+                    <span className="text-[12px] text-[#C9A24D] font-bold">KES {maxPrice.toLocaleString()}</span>
+                  </div>
+                  <input type="range" min="0" max="250000" step="5000" value={maxPrice} onChange={(e) => setMaxPrice(parseInt(e.target.value))} className="w-full accent-[#C9A24D]" />
+               </section>
+
+               <section className="pb-32">
+                  <p className="text-gray-600 text-[10px] uppercase tracking-[0.4em] mb-8">Scent Profiles</p>
+                  <div className="grid grid-cols-2 gap-3">
+                     <button onClick={() => setSelectedSubCat("all")} className={`py-4 text-[10px] uppercase border tracking-widest ${selectedSubCat === "all" ? "border-[#C9A24D] text-[#C9A24D]" : "border-white/5 text-white/30"}`}>All</button>
+                     {categoryData?.subcategories?.map((sub) => (
+                        <button 
+                          key={sub.id} 
+                          onClick={() => setSelectedSubCat(sub.id)} 
+                          className={`py-4 px-2 text-[10px] uppercase border truncate tracking-widest ${selectedSubCat === sub.id ? "border-[#C9A24D] text-[#C9A24D]" : "border-white/5 text-white/30"}`}
+                        >
+                          {sub.name}
+                        </button>
+                     ))}
+                  </div>
+               </section>
+            </div>
+
+            <button 
+              onClick={() => setIsFilterOpen(false)} 
+              className="fixed bottom-10 left-10 right-10 bg-white text-black py-6 text-[11px] font-black uppercase tracking-[0.4em] shadow-2xl flex items-center justify-center gap-4 active:scale-95 transition-transform"
+            >
+                Confirm Selection ({processedPerfumes.length})
+            </button>
+         </div>
+      </div>
+      
       <Footer />
     </main>
   );
