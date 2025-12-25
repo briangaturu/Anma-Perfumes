@@ -13,18 +13,32 @@ import { clearCredentials } from "../features/Auth/Auth.slice";
 const Navbar: React.FC = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [isBouncing, setIsBouncing] = useState(false); // For the pop animation
   
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
+  // --- REDUX STATE ---
   const { isAuthenticated, user, role } = useSelector((state: RootState) => state.auth);
+  const cartItems = useSelector((state: RootState) => state.cart.items);
 
-  // Handle scroll effect for transparency
+  // --- CART COUNT CALCULATION ---
+  const cartCount = useMemo(() => {
+    return cartItems.reduce((total, item) => total + item.quantity, 0);
+  }, [cartItems]);
+
+  // Trigger "Pop" animation when cartCount changes
   useEffect(() => {
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 20);
-    };
+    if (cartCount === 0) return;
+    setIsBouncing(true);
+    const timer = setTimeout(() => setIsBouncing(false), 300);
+    return () => clearTimeout(timer);
+  }, [cartCount]);
+
+  // Handle scroll effect
+  useEffect(() => {
+    const handleScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
@@ -107,7 +121,7 @@ const Navbar: React.FC = () => {
   return (
     <nav className={`fixed top-0 left-0 w-full z-[100] transition-all duration-500 border-b ${
       scrolled 
-      ? "bg-[#0B0B0B]/90 backdrop-blur-md border-white/10 shadow-xl py-0" 
+      ? "bg-[#0B0B0B]/95 backdrop-blur-md border-white/10 shadow-xl py-0" 
       : "bg-[#141414] border-transparent py-1"
     }`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -128,7 +142,7 @@ const Navbar: React.FC = () => {
             </div>
           </Link>
 
-          {/* DESKTOP NAV */}
+          {/* DESKTOP NAV links */}
           <div className="hidden lg:flex space-x-8 items-center text-[10px] uppercase tracking-[0.2em] font-bold">
             <NavLink to="/" end className={activeStyle}><Home size={13} className="mr-1.5" /> Home</NavLink>
             <NavLink to="/perfumes" className={activeStyle}><Sparkles size={13} className="mr-1.5" /> Perfumes</NavLink>
@@ -139,17 +153,21 @@ const Navbar: React.FC = () => {
           </div>
 
           <div className="flex items-center space-x-4">
-            {/* DESKTOP CART */}
+            {/* DESKTOP CART WITH DYNAMIC COUNT & ANIMATION */}
             <NavLink 
               to="/cart" 
               onClick={handleCartClick}
-              className={({ isActive }) => `hidden lg:block relative p-2 transition ${isActive && isAuthenticated ? 'text-[#C9A24D]' : 'text-gray-400 hover:text-white'}`}
+              className={({ isActive }) => `hidden lg:block relative p-2 transition-all ${isActive && isAuthenticated ? 'text-[#C9A24D]' : 'text-gray-400 hover:text-white'}`}
             >
-              <ShoppingBag size={20} strokeWidth={1.5} />
-              <span className="absolute top-1 right-1 bg-[#C9A24D] text-black text-[8px] font-black h-4 w-4 flex items-center justify-center rounded-full">0</span>
+              <ShoppingBag size={20} strokeWidth={1.5} className={isBouncing ? "scale-110" : "scale-100 transition-transform"} />
+              {cartCount > 0 && (
+                <span className={`absolute top-0 right-0 bg-[#C9A24D] text-black text-[9px] font-black h-4 w-4 flex items-center justify-center rounded-full transition-all duration-300 ${isBouncing ? 'scale-125' : 'scale-100'}`}>
+                  {cartCount}
+                </span>
+              )}
             </NavLink>
 
-            {/* SHARED MENU */}
+            {/* ACCOUNT MENU */}
             <div className="relative" ref={dropdownRef}>
               <button 
                 onClick={() => setMenuOpen(!menuOpen)}
@@ -171,8 +189,17 @@ const Navbar: React.FC = () => {
               {menuOpen && (
                 <div className="absolute right-0 mt-3 w-64 bg-[#111111] border border-white/10 shadow-2xl py-3 rounded-sm z-[110] animate-in fade-in slide-in-from-top-2 duration-200">
                   <div className="lg:hidden flex flex-col border-b border-white/5 pb-2 mb-2">
+                    {/* MOBILE CART LINK */}
                     <NavLink to="/cart" onClick={handleCartClick} className={activeMobileStyle}>
-                      <ShoppingBag size={16} className="mr-3" /> Shopping Bag
+                      <div className="relative mr-3">
+                        <ShoppingBag size={16} />
+                        {cartCount > 0 && (
+                          <span className="absolute -top-1 -right-1 bg-[#C9A24D] text-black text-[7px] font-bold h-3 w-3 flex items-center justify-center rounded-full">
+                            {cartCount}
+                          </span>
+                        )}
+                      </div>
+                      Shopping Bag
                     </NavLink>
                     <NavLink to="/" end className={activeMobileStyle} onClick={() => setMenuOpen(false)}><Home size={16} className="mr-3" /> Home</NavLink>
                     <NavLink to="/perfumes" className={activeMobileStyle} onClick={() => setMenuOpen(false)}><Sparkles size={16} className="mr-3" /> Perfumes</NavLink>
@@ -183,7 +210,7 @@ const Navbar: React.FC = () => {
                   </div>
 
                   <div className="px-5 py-2">
-                    <p className="text-[8px] text-gray-500 uppercase tracking-[0.2em] mb-1">Status</p>
+                    <p className="text-[8px] text-gray-500 uppercase tracking-[0.2em] mb-1 font-bold">Member Status</p>
                     <p className="text-[11px] text-white font-medium truncate mb-3">{isAuthenticated ? user?.username : "Guest Member"}</p>
                     
                     {isAuthenticated ? (

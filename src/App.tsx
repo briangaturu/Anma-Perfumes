@@ -8,6 +8,7 @@ import CustomPerfumePage from "./Pages/customperfumes";
 import CartPage from "./Pages/cartPAge";
 import LoginPage from "./Pages/AuthPAges/Login";
 import CategoryDetails from "./components/categoryDetailes";
+import ProductDetailPage from "./components/ProductDetails";
 
 const App = () => {
   const router = createBrowserRouter([
@@ -43,10 +44,16 @@ const App = () => {
       path: '/login',
       element: <LoginPage />
     },
+    {
+      path: '/product/:id', 
+      element: <ProductDetailPage />
+    },
+    
 { 
   path: '/categories/:id', 
   element: <CategoryDetails /> 
 },
+
   ]);
 
   return <RouterProvider router={router} />;
