@@ -7,6 +7,8 @@ import { authApi } from "../features/Apis/Auth.Api";
 import { categoryApi } from "../features/Apis/Categories.APi";
 import { bannerApi } from "../features/Apis/BannerApi";
 import { productApi } from "../features/Apis/products.Api";
+import { customPerfumeApi } from "../features/Apis/CustomPerfumes.Api";
+import { branchApi } from "../features/Apis/Branch.Api";
 
 // Persist Configuration for Auth
 const authPersistConfiguration = {
@@ -34,6 +36,8 @@ export const store = configureStore({
         [categoryApi.reducerPath]: categoryApi.reducer,
         [bannerApi.reducerPath]: bannerApi.reducer,
         [productApi.reducerPath]: productApi.reducer,
+        [customPerfumeApi.reducerPath]: customPerfumeApi.reducer,
+         [branchApi.reducerPath]: branchApi.reducer,
     },
     middleware: (getDefaultMiddleware) =>
         getDefaultMiddleware({
@@ -42,7 +46,9 @@ export const store = configureStore({
             authApi.middleware, 
             categoryApi.middleware, 
             bannerApi.middleware, 
-            productApi.middleware
+            productApi.middleware,
+            customPerfumeApi.middleware,
+            branchApi.middleware
         )
 });
 

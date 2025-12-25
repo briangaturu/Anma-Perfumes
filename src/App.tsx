@@ -2,7 +2,6 @@ import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import Home from "./Pages/Home";
 import PerfumesPage from "./Pages/Perfumes";
 import CosmeticsPage from "./Pages/cosmetic";
-import JewelryPage from "./Pages/Jewelery";
 import BranchesPage from "./Pages/branches";
 import CustomPerfumePage from "./Pages/customperfumes";
 import CartPage from "./Pages/cartPAge";
@@ -15,12 +14,12 @@ import ProtectedRoutes from "./components/ProtectedRoutes";
 import UnifiedProductManager from "./DashBoards/adminDashboard/ProductMAnager";
 import CategoryManager from "./DashBoards/adminDashboard/categoryMAnagers";
 import FlashDealManager from "./DashBoards/adminDashboard/FlashDeal";
-import MediaVaultManager from "./DashBoards/adminDashboard/Media";
-import ManualMediaManager from "./DashBoards/adminDashboard/Media";
-import ProductMediaLinker from "./DashBoards/adminDashboard/Media";
 import MediaManager from "./DashBoards/adminDashboard/Media";
 import JewelleryPage from "./Pages/Jewelery";
 import BannerMAnagement from "./DashBoards/adminDashboard/BannerMager";
+import { MixingLabQueue } from "./DashBoards/adminDashboard/CustomPerfumes";
+import BaseScentVault from "./DashBoards/adminDashboard/BaseScentMAnager";
+import BranchAdminManager from "./DashBoards/adminDashboard/BranchMAnager";
 
 const App = () => {
   const router = createBrowserRouter([
@@ -79,6 +78,9 @@ const App = () => {
        {path: "flash-deals", element:<FlashDealManager />},
        {path: "product-media", element:<MediaManager/>},
        {path: "Manage-banners", element:<BannerMAnagement/>},
+       {path: "Manage-customPerfumes", element:<MixingLabQueue/>},
+       {path: "Manage-scents", element:<BaseScentVault/>},
+       {path: "Branch-Manager", element:<BranchAdminManager/>},
       ],
     },
 
