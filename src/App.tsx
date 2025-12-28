@@ -20,6 +20,12 @@ import BannerMAnagement from "./DashBoards/adminDashboard/BannerMager";
 import { MixingLabQueue } from "./DashBoards/adminDashboard/CustomPerfumes";
 import BaseScentVault from "./DashBoards/adminDashboard/BaseScentMAnager";
 import BranchAdminManager from "./DashBoards/adminDashboard/BranchMAnager";
+import InventoryAdmin from "./DashBoards/adminDashboard/InventoryManager";
+import StandardInventoryAdmin from "./DashBoards/adminDashboard/InventoryManager";
+import ShippingAdmin from "./DashBoards/adminDashboard/ShippingManager";
+import OrderAdminManager from "./DashBoards/adminDashboard/OrderManager";
+import AdminOrderPanel from "./DashBoards/adminDashboard/OrderManager";
+import SuperAdminOrderManager from "./DashBoards/adminDashboard/OrderManager";
 
 const App = () => {
   const router = createBrowserRouter([
@@ -81,6 +87,9 @@ const App = () => {
        {path: "Manage-customPerfumes", element:<MixingLabQueue/>},
        {path: "Manage-scents", element:<BaseScentVault/>},
        {path: "Branch-Manager", element:<BranchAdminManager/>},
+       {path: "Inventory-Manager", element:<StandardInventoryAdmin/>},
+       {path: "shipping-Manager", element:<ShippingAdmin/>},
+       {path: "order-Manager", element:<SuperAdminOrderManager />},
       ],
     },
 

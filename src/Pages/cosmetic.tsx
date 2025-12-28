@@ -1,22 +1,42 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
-  Loader2, Search, SlidersHorizontal, 
-  Zap, ShoppingBag, X, ChevronRight, ArrowUpDown, Filter, Check
+  Loader2, Search, Zap, ShoppingBag, X, 
+  ChevronRight, ArrowUpDown, Filter, Check, MapPin 
 } from "lucide-react";
 
-// API & Redux Actions
+// API Actions
 import { useGetCategoriesQuery, useGetCategoryDetailsQuery } from "../features/Apis/Categories.APi";
 import { useGetAllProductsQuery, useGetProductMediaQuery } from "../features/Apis/products.Api";
+import { useGetProductAvailabilityQuery } from "../features/Apis/Inventory.Api";
+
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 
-// --- SUB-COMPONENT: LUXURY PRODUCT CARD ---
+// --- SUB-COMPONENT: LUXURY COSMETIC CARD ---
 const CosmeticCard = ({ product, navigate }: { product: any, navigate: any }) => {
   const { data: media, isLoading: mediaLoading } = useGetProductMediaQuery(product.id);
+  const { data: inventoryData } = useGetProductAvailabilityQuery(product.id);
+
   const fallbackImage = "https://images.unsplash.com/photo-1596462502278-27bfdc4033c8?q=80&w=800";
   const displayImg = media?.find((m: any) => m.type.includes("image"))?.url || fallbackImage;
   const activeDeal = product.flashDeals?.find((d: any) => d.isActive);
+
+  const availableBranches = useMemo(() => {
+    if (!inventoryData?.data) return [];
+    const uniqueMap = new Map();
+    inventoryData.data.forEach((item: any) => {
+      if (item.quantity > 0) {
+        uniqueMap.set(item.branchId, {
+          branchName: item.branchName,
+          quantity: item.quantity
+        });
+      }
+    });
+    return Array.from(uniqueMap.values());
+  }, [inventoryData]);
+
+  const totalStock = availableBranches.reduce((acc, curr) => acc + (curr as any).quantity, 0);
 
   return (
     <div className="group flex flex-col relative w-full cursor-pointer" onClick={() => navigate(`/product/${product.id}`)}>
@@ -30,28 +50,44 @@ const CosmeticCard = ({ product, navigate }: { product: any, navigate: any }) =>
             src={displayImg} 
             alt={product.name} 
             className="w-full h-full object-cover transition-transform duration-[2.5s] ease-out group-hover:scale-110" 
-            onError={(e) => { (e.target as HTMLImageElement).src = fallbackImage; }}
           />
         )}
+
+        {/* --- BRANCH TAGS --- */}
+        <div className="absolute bottom-3 left-3 right-3 z-20 flex flex-wrap gap-1">
+          {availableBranches.length > 0 ? (
+            availableBranches.map((item: any, idx: number) => (
+              <span key={idx} className="bg-black/60 backdrop-blur-md text-[#C9A24D] text-[7px] font-black px-2 py-1 border border-[#C9A24D]/20 uppercase tracking-tighter flex items-center gap-1 shadow-2xl">
+                <MapPin size={8} className="text-[#C9A24D]" /> {item.branchName}
+              </span>
+            ))
+          ) : (
+            <span className="bg-red-950/40 backdrop-blur-md text-red-400 text-[7px] font-black px-2 py-1 border border-red-500/20 uppercase tracking-tighter">
+              Archive Exhausted
+            </span>
+          )}
+        </div>
+
         <div className="absolute top-3 left-3 z-20">
           {activeDeal && (
-            <div className="bg-[#C9A24D] text-black text-[7px] md:text-[8px] font-black px-2 md:px-3 py-1 uppercase tracking-widest flex items-center gap-1">
-              <Zap size={8} fill="black" /> Deal
+            <div className="bg-[#C9A24D] text-black text-[7px] md:text-[8px] font-black px-2 md:px-3 py-1 uppercase tracking-widest flex items-center gap-1 shadow-xl">
+              <Zap size={8} fill="black" /> RARE DEAL
             </div>
           )}
         </div>
-        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all duration-500 flex items-center justify-center">
-           <span className="bg-white text-black px-6 py-2.5 text-[8px] font-black uppercase tracking-[0.3em]">
-             View Piece
-           </span>
-        </div>
       </div>
-      <div className="mt-5 space-y-1 px-1">
-        <p className="text-[9px] text-gray-500 uppercase tracking-widest">{product.subcategory?.name || "ANMA Exclusive"}</p>
+
+      <div className="mt-5 space-y-1.5 px-1">
+        <p className="text-[9px] text-gray-500 uppercase tracking-widest">{product.subcategory?.name || "Exclusive Selection"}</p>
         <h2 className="text-[12px] md:text-[14px] font-light tracking-[0.05em] text-white uppercase italic truncate">{product.name}</h2>
-        <span className="text-[13px] font-bold text-[#C9A24D]">
-          KES {parseFloat(activeDeal ? activeDeal.flashPrice : product.basePrice).toLocaleString()}
-        </span>
+        <div className="flex justify-between items-center pt-1">
+            <span className="text-[13px] font-bold text-[#C9A24D]">
+                KES {parseFloat(activeDeal ? activeDeal.flashPrice : product.basePrice).toLocaleString()}
+            </span>
+            <span className="text-[7px] text-white/30 font-black uppercase tracking-[0.2em]">
+                {totalStock > 0 ? `${totalStock} Available` : "Enquiry"}
+            </span>
+        </div>
       </div>
     </div>
   );
@@ -63,14 +99,12 @@ const CosmeticsPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [selectedSubCat, setSelectedSubCat] = useState<string>("all");
   const [sortBy, setSortBy] = useState<"latest" | "price-low" | "price-high">("latest");
-  const [maxPrice, setMaxPrice] = useState<number>(50000);
+  const [maxPrice, setMaxPrice] = useState<number>(200000);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
 
-  // 1. DYNAMIC SEARCH: Get "Cosmetics" ID
   const { data: catSearch, isLoading: searchLoading } = useGetCategoriesQuery({ search: "Cosmetics" });
-  const COSMETIC_ID = catSearch?.data?.find(c => c.name.toLowerCase() === "cosmetics")?.id;
+  const COSMETIC_ID = catSearch?.data?.find(c => c.name.toLowerCase().includes("cosmetic"))?.id;
 
-  // 2. FETCH DETAILS & PRODUCTS using Dynamic ID
   const { data: categoryData, isLoading: catLoading } = useGetCategoryDetailsQuery(COSMETIC_ID!, { skip: !COSMETIC_ID });
   const { data: productsData, isLoading: prodLoading } = useGetAllProductsQuery(
     { categoryId: COSMETIC_ID, limit: 100 }, 
@@ -78,16 +112,16 @@ const CosmeticsPage: React.FC = () => {
   );
 
   const processedCosmetics = useMemo(() => {
-    const rawList = Array.isArray(productsData) ? productsData : productsData?.data || [];
+    const rawList = Array.isArray(productsData) ? productsData : (productsData as any)?.data || [];
     
     let filtered = rawList.filter((p: any) => {
-      const currentPrice = p.flashDeals?.some((d: any) => d.isActive) 
+      const price = p.flashDeals?.some((d: any) => d.isActive) 
         ? parseFloat(p.flashDeals.find((d: any) => d.isActive).flashPrice) 
         : parseFloat(p.basePrice);
       
       const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesSub = selectedSubCat === "all" || p.subcategoryId === selectedSubCat;
-      const matchesPrice = currentPrice <= maxPrice;
+      const matchesPrice = price <= maxPrice;
       
       return matchesSearch && matchesSub && matchesPrice;
     });
@@ -105,61 +139,48 @@ const CosmeticsPage: React.FC = () => {
   if (searchLoading || (COSMETIC_ID && (catLoading || prodLoading))) return (
     <div className="h-screen bg-[#050505] flex flex-col items-center justify-center">
       <Loader2 className="text-[#C9A24D] animate-spin mb-4" size={24} />
-      <span className="text-[#C9A24D] text-[9px] uppercase tracking-[0.5em] font-black italic">ANMA LUXE</span>
+      <span className="text-[#C9A24D] text-[9px] uppercase tracking-[0.5em] font-black italic">ANMA COSMETIC SYNC</span>
     </div>
   );
 
   return (
-    <main className="bg-[#050505] min-h-screen text-white">
+    <main className="bg-[#050505] min-h-screen text-white pb-20">
       <Navbar />
 
       <header className="pt-32 md:pt-48 pb-12 md:pb-24 px-4 md:px-6 relative border-b border-white/5 overflow-hidden">
-        {/* Ghost Background Text */}
-        <div className="absolute top-10 left-0 text-[80px] md:text-[180px] font-black text-white/[0.02] select-none pointer-events-none tracking-tighter uppercase whitespace-nowrap">
-            ANMA PERFUMES & JEWELRY
+        <div className="absolute top-10 left-0 text-[100px] md:text-[200px] font-black text-white/[0.01] select-none pointer-events-none tracking-tighter uppercase whitespace-nowrap italic">
+            COSMETIC ARCHIVE
         </div>
 
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="flex items-center gap-3 mb-6">
-             <div className="h-[1px] w-8 bg-[#C9A24D]" />
-             <span className="text-[#C9A24D] text-[10px] font-black uppercase tracking-[0.5em]">The Cosmetic Edit</span>
+             <div className="h-[1px] w-12 bg-[#C9A24D]" />
+             <span className="text-[#C9A24D] text-[10px] font-black uppercase tracking-[0.6em]">The Beauty Vault</span>
           </div>
           
-          <h1 className="text-4xl md:text-[100px] font-extralight tracking-tighter uppercase leading-[0.9] mb-8">
-            ANMA <span className="text-[#C9A24D] font-black italic">Cosmetics</span> <br className="hidden md:block" /> 
-            <span className="text-white/20 md:mx-2">&</span> <span className="text-white">Jewelry</span>
+          <h1 className="text-4xl md:text-[100px] font-extralight tracking-tighter uppercase leading-[0.85] mb-12">
+            ANMA <span className="text-[#C9A24D] font-black italic">Aura</span> <br className="hidden md:block" /> 
+            <span className="text-white/20 md:mx-2">&</span> <span className="text-white">Beauty</span>
           </h1>
           
-          <div className="flex flex-col md:flex-row gap-6 w-full mt-10">
-            <div className="relative border-b border-white/10 flex items-center flex-1 group">
+          <div className="flex flex-col md:flex-row gap-4 w-full mt-10">
+            <div className="relative border-b border-white/10 flex items-center flex-1 group focus-within:border-[#C9A24D] transition-all">
               <Search size={14} className="text-gray-700 transition-colors group-focus-within:text-[#C9A24D]" />
               <input 
                 type="text" 
-                placeholder="SEARCH THE VAULT..." 
-                className="bg-transparent py-4 pl-4 focus:outline-none text-[11px] uppercase tracking-[0.2em] w-full" 
+                placeholder="SEARCH BEAUTY ARCHIVE..." 
+                className="bg-transparent py-4 pl-4 focus:outline-none text-[11px] uppercase tracking-[0.3em] w-full" 
                 value={searchTerm} 
                 onChange={(e) => setSearchTerm(e.target.value)} 
               />
             </div>
-            <div className="flex gap-4 items-center">
+            <div className="flex gap-2">
                 <button 
                   onClick={() => setIsFilterOpen(true)} 
-                  className="flex items-center gap-3 border border-white/10 px-8 py-4 text-[10px] tracking-widest uppercase font-bold text-[#C9A24D] hover:bg-white hover:text-black transition-all"
+                  className="flex-1 md:flex-none flex items-center justify-center gap-3 border border-white/10 px-8 py-3 text-[10px] tracking-widest uppercase font-bold text-[#C9A24D] hover:bg-white hover:text-black transition-all"
                 >
                    REFINE ARCHIVE <Filter size={14} />
                 </button>
-                <div className="hidden md:flex items-center gap-3 border-b border-white/10 px-4 h-full">
-                    <ArrowUpDown size={14} className="text-gray-600" />
-                    <select 
-                      value={sortBy} 
-                      onChange={(e) => setSortBy(e.target.value as any)} 
-                      className="bg-transparent py-4 text-[10px] uppercase tracking-[0.2em] focus:outline-none cursor-pointer font-bold text-[#C9A24D]"
-                    >
-                        <option value="latest" className="bg-black">Newest Arrivals</option>
-                        <option value="price-high" className="bg-black">Price: High to Low</option>
-                        <option value="price-low" className="bg-black">Price: Low to High</option>
-                    </select>
-                </div>
             </div>
           </div>
         </div>
@@ -171,15 +192,15 @@ const CosmeticsPage: React.FC = () => {
         <aside className="hidden lg:block lg:col-span-3">
           <div className="sticky top-40 space-y-16">
             <div>
-                <h3 className="text-white text-[10px] font-black uppercase tracking-[0.5em] mb-8 pb-4 border-b border-white/5">Collections</h3>
+                <h3 className="text-white text-[10px] font-black uppercase tracking-[0.5em] mb-8 pb-4 border-b border-white/5">Distinction</h3>
                 <ul className="space-y-6">
                   <li 
                     onClick={() => setSelectedSubCat("all")} 
                     className={`text-[10px] uppercase tracking-[0.3em] cursor-pointer transition-all flex items-center justify-between ${selectedSubCat === "all" ? "text-[#C9A24D]" : "text-gray-600 hover:text-white"}`}
                   >
-                    All Masterpieces <ChevronRight size={10} className={selectedSubCat === "all" ? "opacity-100" : "opacity-0"} />
+                    All Collections <ChevronRight size={10} className={selectedSubCat === "all" ? "opacity-100" : "opacity-0"} />
                   </li>
-                  {categoryData?.subcategories?.map((sub) => (
+                  {categoryData?.subcategories?.map((sub: any) => (
                       <li 
                         key={sub.id} 
                         onClick={() => setSelectedSubCat(sub.id)} 
@@ -192,14 +213,14 @@ const CosmeticsPage: React.FC = () => {
             </div>
 
             <div>
-              <div className="flex justify-between mb-8 pb-4 border-b border-white/5">
+              <div className="flex justify-between items-end mb-8 pb-4 border-b border-white/5">
                 <h3 className="text-white text-[10px] font-black uppercase tracking-[0.5em]">Investment</h3>
-                <span className="text-[10px] text-[#C9A24D] font-bold tracking-widest">KES {maxPrice.toLocaleString()}</span>
+                <span className="text-[11px] font-bold text-[#C9A24D]">KES {maxPrice.toLocaleString()}</span>
               </div>
               <input 
-                type="range" min="0" max="100000" step="500" 
-                value={maxPrice} onChange={(e) => setMaxPrice(parseInt(e.target.value))} 
-                className="w-full accent-[#C9A24D] bg-white/10 h-[2px] appearance-none cursor-pointer" 
+                type="range" min="0" max="200000" step="1000" value={maxPrice} 
+                onChange={(e) => setMaxPrice(parseInt(e.target.value))} 
+                className="w-full accent-[#C9A24D] bg-white/10 h-[1px] appearance-none cursor-pointer" 
               />
             </div>
           </div>
@@ -212,11 +233,10 @@ const CosmeticsPage: React.FC = () => {
               <CosmeticCard key={p.id} product={p} navigate={navigate} />
             ))}
           </div>
-
           {processedCosmetics.length === 0 && (
              <div className="py-40 text-center opacity-40">
                 <ShoppingBag size={40} strokeWidth={1} className="mx-auto mb-6" />
-                <p className="text-[10px] uppercase tracking-[0.5em]">No pieces found in current search</p>
+                <p className="text-[10px] uppercase tracking-[0.5em]">The vault is empty for this criteria</p>
              </div>
           )}
         </section>
@@ -227,23 +247,23 @@ const CosmeticsPage: React.FC = () => {
          <div className="absolute inset-0 bg-black/98 backdrop-blur-3xl" onClick={() => setIsFilterOpen(false)} />
          <div className="relative h-full flex flex-col p-10 overflow-y-auto">
             <div className="flex justify-between items-center mb-16">
-               <span className="text-[#C9A24D] text-[11px] font-black uppercase tracking-[0.5em]">ANMA REFINE</span>
-               <button onClick={() => setIsFilterOpen(false)} className="p-3 bg-white/5 rounded-full"><X size={20} /></button>
+               <span className="text-[#C9A24D] text-[11px] font-black uppercase tracking-[0.5em]">Refine Archive</span>
+               <button onClick={() => setIsFilterOpen(false)} className="p-3 bg-white/5 rounded-full transition-all hover:rotate-90"><X size={20} /></button>
             </div>
             
             <div className="space-y-14">
                <section>
-                  <p className="text-gray-600 text-[10px] uppercase tracking-[0.4em] mb-8 font-bold">Sort By</p>
+                  <p className="text-gray-600 text-[10px] uppercase tracking-[0.4em] mb-8">Sort Preference</p>
                   <div className="space-y-3">
                      {[
                         { label: "Newest Arrivals", val: "latest" },
-                        { label: "High to Low Price", val: "price-high" },
-                        { label: "Low to High Price", val: "price-low" }
+                        { label: "Price: High to Low", val: "price-high" },
+                        { label: "Price: Low to High", val: "price-low" }
                      ].map((opt) => (
                         <button 
                           key={opt.val} 
                           onClick={() => setSortBy(opt.val as any)} 
-                          className={`w-full py-4 px-6 text-left text-[11px] uppercase tracking-widest border transition-all flex justify-between items-center ${sortBy === opt.val ? "border-[#C9A24D] text-[#C9A24D] bg-[#C9A24D]/5" : "border-white/5 text-white/40"}`}
+                          className={`w-full py-4 px-6 text-left text-[11px] uppercase tracking-widest border transition-all flex justify-between items-center ${sortBy === opt.val ? "border-[#C9A24D] text-[#C9A24D] bg-[#C9A24D]/5" : "border-white/5 text-white/30"}`}
                         >
                             {opt.label} {sortBy === opt.val && <Check size={14} />}
                         </button>
@@ -253,21 +273,21 @@ const CosmeticsPage: React.FC = () => {
 
                <section>
                   <div className="flex justify-between items-end mb-8">
-                    <p className="text-gray-600 text-[10px] uppercase tracking-[0.4em] font-bold">Investment Ceiling</p>
+                    <p className="text-gray-600 text-[10px] uppercase tracking-[0.4em]">Price Ceiling</p>
                     <span className="text-[12px] text-[#C9A24D] font-bold">KES {maxPrice.toLocaleString()}</span>
                   </div>
-                  <input type="range" min="0" max="100000" step="1000" value={maxPrice} onChange={(e) => setMaxPrice(parseInt(e.target.value))} className="w-full accent-[#C9A24D]" />
+                  <input type="range" min="0" max="200000" step="5000" value={maxPrice} onChange={(e) => setMaxPrice(parseInt(e.target.value))} className="w-full accent-[#C9A24D]" />
                </section>
 
                <section className="pb-32">
-                  <p className="text-gray-600 text-[10px] uppercase tracking-[0.4em] mb-8 font-bold">Collections</p>
+                  <p className="text-gray-600 text-[10px] uppercase tracking-[0.4em] mb-8">Product Categories</p>
                   <div className="grid grid-cols-2 gap-3">
-                     <button onClick={() => setSelectedSubCat("all")} className={`py-4 text-[10px] uppercase border tracking-widest ${selectedSubCat === "all" ? "border-[#C9A24D] text-[#C9A24D]" : "border-white/5 text-white/30"}`}>All Archive</button>
-                     {categoryData?.subcategories?.map((sub) => (
+                     <button onClick={() => setSelectedSubCat("all")} className={`py-4 text-[10px] uppercase border tracking-widest ${selectedSubCat === "all" ? "border-[#C9A24D] text-[#C9A24D]" : "border-white/5 text-white/30"}`}>All</button>
+                     {categoryData?.subcategories?.map((sub: any) => (
                         <button 
                           key={sub.id} 
                           onClick={() => setSelectedSubCat(sub.id)} 
-                          className={`py-4 px-2 text-[10px] uppercase border tracking-widest truncate ${selectedSubCat === sub.id ? "border-[#C9A24D] text-[#C9A24D]" : "border-white/5 text-white/30"}`}
+                          className={`py-4 px-2 text-[10px] uppercase border truncate tracking-widest ${selectedSubCat === sub.id ? "border-[#C9A24D] text-[#C9A24D]" : "border-white/5 text-white/30"}`}
                         >
                           {sub.name}
                         </button>
@@ -278,13 +298,13 @@ const CosmeticsPage: React.FC = () => {
 
             <button 
               onClick={() => setIsFilterOpen(false)} 
-              className="fixed bottom-10 left-10 right-10 bg-[#C9A24D] text-black py-6 text-[10px] font-black uppercase tracking-[0.4em] shadow-2xl flex items-center justify-center gap-4 active:scale-95 transition-transform"
+              className="fixed bottom-10 left-10 right-10 bg-white text-black py-6 text-[11px] font-black uppercase tracking-[0.4em] shadow-2xl flex items-center justify-center gap-4 active:scale-95 transition-transform"
             >
-                Confirm Archive View ({processedCosmetics.length})
+                Confirm Selection ({processedCosmetics.length})
             </button>
          </div>
       </div>
-      
+
       <Footer />
     </main>
   );

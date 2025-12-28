@@ -9,6 +9,9 @@ import { bannerApi } from "../features/Apis/BannerApi";
 import { productApi } from "../features/Apis/products.Api";
 import { customPerfumeApi } from "../features/Apis/CustomPerfumes.Api";
 import { branchApi } from "../features/Apis/Branch.Api";
+import { inventoryApi } from "../features/Apis/Inventory.Api";
+import { shippingApi } from "../features/Apis/ShippingRates.Api";
+import { orderApi } from "../features/Apis/Orders.Api";
 
 // Persist Configuration for Auth
 const authPersistConfiguration = {
@@ -37,7 +40,9 @@ export const store = configureStore({
         [bannerApi.reducerPath]: bannerApi.reducer,
         [productApi.reducerPath]: productApi.reducer,
         [customPerfumeApi.reducerPath]: customPerfumeApi.reducer,
-         [branchApi.reducerPath]: branchApi.reducer,
+        [branchApi.reducerPath]: branchApi.reducer,  [inventoryApi.reducerPath]: inventoryApi.reducer,
+        [shippingApi.reducerPath]: shippingApi.reducer, 
+        [orderApi.reducerPath]: orderApi.reducer, 
     },
     middleware: (getDefaultMiddleware) =>
         getDefaultMiddleware({
@@ -48,7 +53,10 @@ export const store = configureStore({
             bannerApi.middleware, 
             productApi.middleware,
             customPerfumeApi.middleware,
-            branchApi.middleware
+            branchApi.middleware,
+            inventoryApi.middleware,
+            shippingApi.middleware,
+            orderApi.middleware
         )
 });
 

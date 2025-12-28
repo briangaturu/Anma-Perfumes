@@ -2,21 +2,42 @@ import React, { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
   Loader2, Search, SlidersHorizontal, 
-  Zap, ShoppingBag, X, ChevronRight, ArrowUpDown, Filter, Check
+  Zap, ShoppingBag, X, ChevronRight, ArrowUpDown, Filter, Check, MapPin
 } from "lucide-react";
 
 // API Hooks
 import { useGetCategoriesQuery, useGetCategoryDetailsQuery } from "../features/Apis/Categories.APi";
 import { useGetAllProductsQuery, useGetProductMediaQuery } from "../features/Apis/products.Api";
+import { useGetProductAvailabilityQuery } from "../features/Apis/Inventory.Api";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 
-// --- SUB-COMPONENT: LUXURY PRODUCT CARD ---
+// --- SUB-COMPONENT: LUXURY PRODUCT CARD WITH UNIQUE INVENTORY TAGS ---
 const PerfumeCard = ({ product, navigate }: { product: any, navigate: any }) => {
   const { data: media, isLoading: mediaLoading } = useGetProductMediaQuery(product.id);
+  const { data: inventoryData } = useGetProductAvailabilityQuery(product.id);
+
   const fallbackImage = "https://images.unsplash.com/photo-1594035910387-fea47794261f?q=80&w=800";
   const displayImg = media?.find((m: any) => m.type.includes("image"))?.url || fallbackImage;
   const activeDeal = product.flashDeals?.find((d: any) => d.isActive);
+
+  // --- LOGIC: Group by Branch to prevent duplicate tags ---
+  const availableBranches = useMemo(() => {
+    if (!inventoryData?.data) return [];
+    
+    const uniqueMap = new Map();
+    inventoryData.data.forEach((item: any) => {
+      if (item.quantity > 0) {
+        uniqueMap.set(item.branchId, {
+          branchName: item.branchName,
+          quantity: item.quantity
+        });
+      }
+    });
+    return Array.from(uniqueMap.values());
+  }, [inventoryData]);
+
+  const totalStock = availableBranches.reduce((acc, curr) => acc + (curr as any).quantity, 0);
 
   return (
     <div className="group flex flex-col relative w-full cursor-pointer" onClick={() => navigate(`/product/${product.id}`)}>
@@ -33,6 +54,22 @@ const PerfumeCard = ({ product, navigate }: { product: any, navigate: any }) => 
             onError={(e) => { (e.target as HTMLImageElement).src = fallbackImage; }}
           />
         )}
+
+        {/* --- UNIQUE BRANCH AVAILABILITY TAGS --- */}
+        <div className="absolute bottom-3 left-3 right-3 z-20 flex flex-wrap gap-1">
+          {availableBranches.length > 0 ? (
+            availableBranches.map((item: any, idx: number) => (
+              <span key={idx} className="bg-black/60 backdrop-blur-md text-[#C9A24D] text-[7px] font-black px-2 py-1 border border-[#C9A24D]/20 uppercase tracking-tighter flex items-center gap-1 shadow-2xl">
+                <MapPin size={8} className="text-[#C9A24D]" /> {item.branchName}
+              </span>
+            ))
+          ) : (
+            <span className="bg-red-950/40 backdrop-blur-md text-red-400 text-[7px] font-black px-2 py-1 border border-red-500/20 uppercase tracking-tighter">
+              Archive Exhausted
+            </span>
+          )}
+        </div>
+
         <div className="absolute top-3 left-3 z-20">
           {activeDeal && (
             <div className="bg-[#C9A24D] text-black text-[7px] md:text-[8px] font-black px-2 md:px-3 py-1 uppercase tracking-widest flex items-center gap-1">
@@ -49,9 +86,14 @@ const PerfumeCard = ({ product, navigate }: { product: any, navigate: any }) => 
       <div className="mt-5 space-y-1.5 px-1">
         <p className="text-[9px] text-gray-500 uppercase tracking-widest">{product.subcategory?.name || "Parfum"}</p>
         <h2 className="text-[12px] md:text-[14px] font-light tracking-[0.05em] text-white uppercase italic truncate">{product.name}</h2>
-        <span className="text-[13px] font-bold text-[#C9A24D]">
-          KES {parseFloat(activeDeal ? activeDeal.flashPrice : product.basePrice).toLocaleString()}
-        </span>
+        <div className="flex justify-between items-center pt-1">
+            <span className="text-[13px] font-bold text-[#C9A24D]">
+                KES {parseFloat(activeDeal ? activeDeal.flashPrice : product.basePrice).toLocaleString()}
+            </span>
+            <span className="text-[7px] text-white/30 font-black uppercase tracking-[0.2em]">
+                {totalStock > 0 ? `${totalStock} Available` : "Enquire"}
+            </span>
+        </div>
       </div>
     </div>
   );
@@ -78,7 +120,7 @@ const PerfumesPage: React.FC = () => {
   );
 
   const processedPerfumes = useMemo(() => {
-    const rawList = Array.isArray(productsData) ? productsData : productsData?.data || [];
+    const rawList = Array.isArray(productsData) ? productsData : (productsData as any)?.data || [];
     
     let filtered = rawList.filter((p: any) => {
       const currentPrice = p.flashDeals?.some((d: any) => d.isActive) 
@@ -110,7 +152,7 @@ const PerfumesPage: React.FC = () => {
   );
 
   return (
-    <main className="bg-[#050505] min-h-screen text-white">
+    <main className="bg-[#050505] min-h-screen text-white pb-10">
       <Navbar />
 
       <header className="pt-32 md:pt-48 pb-12 md:pb-24 px-4 md:px-6 relative border-b border-white/5 overflow-hidden">
@@ -127,7 +169,7 @@ const PerfumesPage: React.FC = () => {
           </h1>
           
           <div className="flex flex-col md:flex-row gap-4 w-full mt-10">
-            <div className="relative border-b border-white/10 flex items-center flex-1 group">
+            <div className="relative border-b border-white/10 flex items-center flex-1 group focus-within:border-[#C9A24D] transition-all">
               <Search size={14} className="text-gray-700 transition-colors group-focus-within:text-[#C9A24D]" />
               <input 
                 type="text" 
@@ -217,7 +259,7 @@ const PerfumesPage: React.FC = () => {
         </section>
       </div>
 
-      {/* MOBILE FILTER DRAWER (REFINE MODAL) */}
+      {/* MOBILE FILTER DRAWER */}
       <div className={`fixed inset-0 z-[100] transition-transform duration-700 ease-in-out ${isFilterOpen ? "translate-y-0" : "translate-y-full"}`}>
          <div className="absolute inset-0 bg-black/98 backdrop-blur-3xl" onClick={() => setIsFilterOpen(false)} />
          <div className="relative h-full flex flex-col p-10 overflow-y-auto">

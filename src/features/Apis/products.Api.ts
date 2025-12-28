@@ -14,14 +14,14 @@ export interface ProductVariant {
   id: string;
   productId: string;
   name: string;
-  additionalPrice: string;
+  additionalPrice: string; // From Numeric DB type
   sku: string;
 }
 
 export interface FlashDeal {
   id: string;
   productId: string;
-  flashPrice: string;
+  flashPrice: string; // From Numeric DB type
   startTime: string;
   endTime: string;
   dealStock: number;
@@ -29,13 +29,41 @@ export interface FlashDeal {
   isActive: boolean;
 }
 
+// --- NEW INVENTORY INTERFACES ---
+
+export interface BranchAvailability {
+  branchId: string;
+  branchName: string;
+  status: "IN_STOCK" | "LOW_STOCK" | "OUT_OF_STOCK";
+  quantity?: number;
+}
+
+export interface InventoryItem {
+  id: string;
+  branchId: string;
+  productId: string;
+  quantity: number;
+  reorderLevel: number;
+  product?: Product;
+}
+
+export interface PerfumeRaw {
+  id: string;
+  productId: string;
+  stockLevel: "EMPTY" | "QUARTER" | "HALF" | "FULL";
+  updatedAt: string;
+  product?: Product;
+}
+
 export interface Product {
   id: string;
   name: string;
+  slug: string; 
   categoryId: string;
-  subcategoryId?: string;
-  description?: string;
-  basePrice: string;
+  subcategoryId?: string | null;
+  description?: string | null;
+  basePrice: string; // Backend returns Numeric as string
+  gallery: string[]; 
   createdAt: string;
   updatedAt: string;
   media?: ProductMedia[];
@@ -53,21 +81,26 @@ interface ProductResponse {
 export const productApi = createApi({
   reducerPath: "productApi",
   baseQuery: fetchBaseQuery({
-    baseUrl: "http://localhost:5000/api/products",
+    baseUrl: "http://localhost:5000/api/products", 
     prepareHeaders: (headers, { getState }) => {
       const token = (getState() as RootState).auth.token;
       if (token) headers.set("authorization", `Bearer ${token}`);
       return headers;
     },
   }),
-  tagTypes: ["Product", "FlashDeal", "Media", "Variant"],
+  tagTypes: ["Product", "FlashDeal", "Media", "Variant", "Inventory"],
   endpoints: (builder) => ({
     
-    // --- 1 & 6, 7, 8: PRODUCT CRUD ---
+    // --- PRODUCT CRUD ---
     getAllProducts: builder.query<ProductResponse, { page?: number; limit?: number; search?: string; categoryId?: string }>({
       query: (params) => ({ url: "/", params }),
       providesTags: (result) =>
-        result ? [...result.data.map(({ id }) => ({ type: "Product" as const, id })), { type: "Product", id: "LIST" }] : [{ type: "Product", id: "LIST" }],
+        result 
+          ? [
+              ...result.data.map(({ id }) => ({ type: "Product" as const, id })), 
+              { type: "Product", id: "LIST" }
+            ] 
+          : [{ type: "Product", id: "LIST" }],
     }),
 
     getProductDetails: builder.query<Product, string>({
@@ -90,7 +123,18 @@ export const productApi = createApi({
       invalidatesTags: [{ type: "Product", id: "LIST" }],
     }),
 
-    // --- 3, 9, 10, 11, 12: FLASH DEALS ---
+    // --- NEW: INVENTORY & AVAILABILITY ---
+    getProductAvailability: builder.query<BranchAvailability[], string>({
+      query: (id) => `/availability/${id}`,
+      providesTags: (result, error, id) => [{ type: "Inventory", id }],
+    }),
+
+    getBranchInventory: builder.query<any, string>({
+      query: (branchId) => `/branch-inventory/${branchId}`,
+      providesTags: ["Inventory"],
+    }),
+
+    // --- FLASH DEALS ---
     getActiveFlashDeals: builder.query<FlashDeal[], void>({
       query: () => "/flash-deals/active",
       providesTags: ["FlashDeal"],
@@ -103,12 +147,12 @@ export const productApi = createApi({
 
     createFlashDeal: builder.mutation<FlashDeal, Partial<FlashDeal>>({
       query: (body) => ({ url: "/flash-deals", method: "POST", body }),
-      invalidatesTags: ["FlashDeal", "Product"], // Invalidates Product to show deal badge on UI
+      invalidatesTags: (result) => [{ type: "Product", id: result?.productId }, "FlashDeal"],
     }),
 
     updateFlashDeal: builder.mutation<FlashDeal, { id: string; updates: Partial<FlashDeal> }>({
       query: ({ id, updates }) => ({ url: `/flash-deals/${id}`, method: "PATCH", body: updates }),
-      invalidatesTags: ["FlashDeal", "Product"],
+      invalidatesTags: (result) => [{ type: "Product", id: result?.productId }, "FlashDeal"],
     }),
 
     incrementFlashDealSale: builder.mutation<FlashDeal, string>({
@@ -116,10 +160,10 @@ export const productApi = createApi({
       invalidatesTags: ["FlashDeal"],
     }),
 
-    // --- 4, 13, 14, 15: MEDIA ---
+    // --- MEDIA ---
     getProductMedia: builder.query<ProductMedia[], string>({
       query: (productId) => `/media/product/${productId}`,
-      providesTags: ["Media"],
+      providesTags: (result, error, productId) => [{ type: "Media", id: productId }],
     }),
 
     addMedia: builder.mutation<ProductMedia, Partial<ProductMedia>>({
@@ -132,10 +176,10 @@ export const productApi = createApi({
       invalidatesTags: ["Product", "Media"],
     }),
 
-    // --- 5, 16, 17, 18: VARIANTS ---
+    // --- VARIANTS ---
     getProductVariants: builder.query<ProductVariant[], string>({
       query: (productId) => `/variants/product/${productId}`,
-      providesTags: ["Variant"],
+      providesTags: (result, error, productId) => [{ type: "Variant", id: productId }],
     }),
 
     createVariant: builder.mutation<ProductVariant, Partial<ProductVariant>>({
@@ -145,7 +189,7 @@ export const productApi = createApi({
 
     updateVariant: builder.mutation<ProductVariant, { id: string; updates: Partial<ProductVariant> }>({
       query: ({ id, updates }) => ({ url: `/variants/${id}`, method: "PATCH", body: updates }),
-      invalidatesTags: ["Product", "Variant"],
+      invalidatesTags: (result) => [{ type: "Product", id: result?.productId }, "Variant"],
     }),
 
     bulkDeleteVariants: builder.mutation<{ message: string }, string[]>({
@@ -158,6 +202,8 @@ export const productApi = createApi({
 export const {
   useGetAllProductsQuery,
   useGetProductDetailsQuery,
+  useGetProductAvailabilityQuery,
+  useGetBranchInventoryQuery,
   useGetActiveFlashDealsQuery,
   useGetAllFlashDealsQuery,
   useCreateProductMutation,
