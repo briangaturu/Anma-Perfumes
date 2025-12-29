@@ -12,6 +12,7 @@ import { branchApi } from "../features/Apis/Branch.Api";
 import { inventoryApi } from "../features/Apis/Inventory.Api";
 import { shippingApi } from "../features/Apis/ShippingRates.Api";
 import { orderApi } from "../features/Apis/Orders.Api";
+import { paymentApi } from "../features/Apis/Mpesa.Api";
 
 // Persist Configuration for Auth
 const authPersistConfiguration = {
@@ -43,6 +44,7 @@ export const store = configureStore({
         [branchApi.reducerPath]: branchApi.reducer,  [inventoryApi.reducerPath]: inventoryApi.reducer,
         [shippingApi.reducerPath]: shippingApi.reducer, 
         [orderApi.reducerPath]: orderApi.reducer, 
+         [paymentApi.reducerPath]: paymentApi.reducer, 
     },
     middleware: (getDefaultMiddleware) =>
         getDefaultMiddleware({
@@ -56,7 +58,8 @@ export const store = configureStore({
             branchApi.middleware,
             inventoryApi.middleware,
             shippingApi.middleware,
-            orderApi.middleware
+            orderApi.middleware,
+             paymentApi.middleware,
         )
 });
 

@@ -18,6 +18,7 @@ import {
   Globe,
   Car,
   ListOrdered,
+  CardSimIcon,
 } from "lucide-react";
 import { useDispatch } from "react-redux";
 import { clearCredentials } from "../../features/Auth/Auth.slice";
@@ -36,6 +37,8 @@ const navItems = [
       { name: "Inventory Manager", path: "Inventory-Manager", icon: <GiSecretBook size={18} /> },  
   { name: "Shipping Rates Manager", path: "shipping-Manager", icon: <Car size={18} /> },
   { name: "orders Manager", path: "order-Manager", icon: <ListOrdered size={18} /> },
+ 
+  { name: "Payment Manager", path: "payment-Manager", icon: <CardSimIcon size={18} /> },
   { name: "Executive Summary", path: "analytics", icon: <TrendingUp size={18} /> },
   { name: "Client Management", path: "AllUsers", icon: <Users size={18} /> },
   { name: "Bespoke Orders", path: "AllBookings", icon: <ShoppingBag size={18} /> },

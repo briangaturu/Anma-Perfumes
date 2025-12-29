@@ -26,6 +26,7 @@ import ShippingAdmin from "./DashBoards/adminDashboard/ShippingManager";
 import OrderAdminManager from "./DashBoards/adminDashboard/OrderManager";
 import AdminOrderPanel from "./DashBoards/adminDashboard/OrderManager";
 import SuperAdminOrderManager from "./DashBoards/adminDashboard/OrderManager";
+import PaymentAdmin from "./DashBoards/adminDashboard/PaymentManager";
 
 const App = () => {
   const router = createBrowserRouter([
@@ -90,6 +91,7 @@ const App = () => {
        {path: "Inventory-Manager", element:<StandardInventoryAdmin/>},
        {path: "shipping-Manager", element:<ShippingAdmin/>},
        {path: "order-Manager", element:<SuperAdminOrderManager />},
+       {path: "payment-Manager", element:<PaymentAdmin />},
       ],
     },
 

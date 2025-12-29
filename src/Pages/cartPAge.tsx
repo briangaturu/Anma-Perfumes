@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { Link, useNavigate } from "react-router-dom";
 import type { RootState } from "../App/store";
@@ -7,13 +7,14 @@ import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import { useGetProductAvailabilityQuery } from "../features/Apis/Inventory.Api";
 import { 
-  Trash2, Plus, Minus, MapPin, 
-  ShoppingBag, Store, Truck, Building2, 
+  Trash2, Plus, Minus, 
+  ShoppingBag, Store, Truck, 
   Smartphone, ArrowRight, Loader2,
-  ShieldCheck, Zap, Receipt, CheckCircle2 // ✅ Fixed: Added CheckCircle2
+  ShieldCheck, Zap, CheckCircle2, X 
 } from "lucide-react";
 import { useGetShippingRatesQuery } from "../features/Apis/ShippingRates.Api";
 import { useCreateOrderMutation } from "../features/Apis/Orders.Api"; 
+import { useInitiateStkPushMutation, useGetPaymentsByOrderIdQuery } from "../features/Apis/Mpesa.Api"; 
 import toast from "react-hot-toast";
 
 /* --- SUB-COMPONENT: REFINED ITEM ROW --- */
@@ -103,6 +104,7 @@ const CartPage: React.FC = () => {
   const cartBranchIds = useMemo(() => Array.from(new Set(cart.map(item => item.branchId))), [cart]);
   const { data: shippingRates } = useGetShippingRatesQuery(cartBranchIds);
   const [createOrder, { isLoading: isCreatingOrder }] = useCreateOrderMutation();
+  const [initiateStkPush, { isLoading: isInitiatingMpesa }] = useInitiateStkPushMutation();
 
   const [deliveryMethod, setDeliveryMethod] = useState<"delivery" | "pickup">("delivery");
   const [selectedAreaName, setSelectedAreaName] = useState<string>(""); 
@@ -112,23 +114,38 @@ const CartPage: React.FC = () => {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [inventoryError, setInventoryError] = useState<{id: string, msg: React.ReactNode} | null>(null);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
+  const [isPaid, setIsPaid] = useState(false);
+
+  // Polling logic for real-time status updates
+  const { data: paymentStatus, refetch: manualRefetch } = useGetPaymentsByOrderIdQuery(activeOrderId as string, {
+    pollingInterval: 3000,
+    skip: !activeOrderId || !showPaymentModal || isPaid,
+  });
+
+  useEffect(() => {
+    if (paymentStatus && paymentStatus.some((p: any) => p.status === 'success')) {
+      setIsPaid(true);
+      toast.success("Payment Received! Finalizing Acquisition...");
+      const timer = setTimeout(() => {
+        dispatch(clearCart());
+        setShowPaymentModal(false);
+        navigate("/");
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [paymentStatus, dispatch, navigate]);
 
   const subtotal = useMemo(() => cart.reduce((acc, item) => acc + (item.price * item.quantity), 0), [cart]);
 
   const shippingDetails = useMemo(() => {
-    if (deliveryMethod === "pickup" || !selectedAreaName || !shippingRates) return { total: 0, breakdown: [] };
+    if (deliveryMethod === "pickup" || !selectedAreaName || !shippingRates) return { total: 0 };
     let total = 0;
-    const breakdown: any[] = [];
     const uniqueBranches = Array.from(new Set(cart.map(i => i.branchId)));
-    
     uniqueBranches.forEach(bId => {
       const rate = shippingRates.find(r => String(r.branchId) === String(bId) && r.areaName === selectedAreaName);
-      if (rate) {
-        total += parseFloat(rate.fee);
-        breakdown.push({ name: cart.find(c => c.branchId === bId)?.branchName, fee: rate.fee });
-      }
+      if (rate) total += parseFloat(rate.fee);
     });
-    return { total, breakdown };
+    return { total };
   }, [deliveryMethod, cart, shippingRates, selectedAreaName]);
 
   const totalAmount = subtotal + shippingDetails.total;
@@ -150,9 +167,9 @@ const CartPage: React.FC = () => {
         customerPhone: phoneNumber,
         shippingAddress: streetAddress || "N/A - Boutique Pickup",
         shippingArea: selectedAreaName || "Boutique Location",
-        subtotal: subtotal,
+        subtotal,
         shippingFee: shippingDetails.total,
-        totalAmount: totalAmount,
+        totalAmount,
         paymentMethod: "mpesa",
         payment_status: "pending",
         items: cart.map(item => ({
@@ -165,19 +182,28 @@ const CartPage: React.FC = () => {
       };
 
       const res = await createOrder(orderPayload).unwrap();
-      setActiveOrderId(res.data?.orderNumber || res.id);
-      toast.success("Manifest Generated", { id: loadId });
+      const newOrderId = res.data?.id || res.id;
+      setActiveOrderId(newOrderId);
+
+      toast.loading("Invoking M-Pesa Prompt...", { id: loadId });
+      
+      await initiateStkPush({
+        amount: totalAmount,
+        phoneNumber: phoneNumber.replace(/\D/g, ""), 
+        orderId: newOrderId,
+        userId: authUser.id
+      }).unwrap();
+
+      toast.success("Manifest Generated & Sent to Phone", { id: loadId });
       setShowPaymentModal(true);
     } catch (err: any) {
-      toast.error(err?.data?.message || "Registry Sync Failed", { id: loadId });
+      toast.error(err?.data?.errorMessage || "Registry Sync Failed", { id: loadId });
     }
   };
 
-  const finalizePayment = () => {
-    toast.success("STK Push broadcasted to " + phoneNumber);
-    dispatch(clearCart());
-    setShowPaymentModal(false);
-    navigate("/");
+  const triggerManualCheck = () => {
+    toast.loading("Interrogating Gateway...");
+    manualRefetch();
   };
 
   if (cart.length === 0) {
@@ -198,7 +224,6 @@ const CartPage: React.FC = () => {
       <div className="max-w-7xl mx-auto px-6 pt-48 pb-40">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-24">
           
-          {/* --- LEFT SECTION --- */}
           <div className="lg:col-span-8 space-y-16">
             <header className="flex flex-col gap-4">
                 <div className="flex items-center gap-2 text-[#C9A24D]">
@@ -243,7 +268,7 @@ const CartPage: React.FC = () => {
 
                 {deliveryMethod === "delivery" && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-10 animate-in slide-in-from-bottom-4 duration-700">
-                        <div className="space-y-4 text-white">
+                        <div className="space-y-4">
                             <label className="text-[9px] uppercase font-black text-white/30 tracking-[0.3em] ml-4">Dispatch Destination</label>
                             <select className="w-full bg-black border border-white/5 p-7 rounded-[2rem] text-[10px] font-black uppercase tracking-widest outline-none focus:border-[#C9A24D] appearance-none" value={selectedAreaName} onChange={(e) => setSelectedAreaName(e.target.value)}>
                                 <option value="">SELECT REGION...</option>
@@ -259,7 +284,6 @@ const CartPage: React.FC = () => {
             </section>
           </div>
 
-          {/* --- RIGHT SECTION --- */}
           <div className="lg:col-span-4 lg:sticky lg:top-40 h-fit">
             <div className="bg-[#0A0A0A] p-12 rounded-[4rem] border border-white/10 shadow-2xl space-y-12">
                 <h3 className="text-[10px] font-black uppercase tracking-[0.6em] text-[#C9A24D] text-center">Checkout Summary</h3>
@@ -269,11 +293,9 @@ const CartPage: React.FC = () => {
                         <span className="font-mono text-white">KES {subtotal.toLocaleString()}</span>
                     </div>
                     {deliveryMethod === "delivery" && (
-                        <div className="space-y-3">
-                            <div className="flex justify-between text-[10px] text-white/40 font-black uppercase tracking-widest">
-                                <span>Logistics</span>
-                                <span className="font-mono text-white">KES {shippingDetails.total.toLocaleString()}</span>
-                            </div>
+                        <div className="flex justify-between text-[10px] text-white/40 font-black uppercase tracking-widest">
+                            <span>Logistics</span>
+                            <span className="font-mono text-white">KES {shippingDetails.total.toLocaleString()}</span>
                         </div>
                     )}
                     <div className="h-[1px] bg-white/5 my-8" />
@@ -298,10 +320,10 @@ const CartPage: React.FC = () => {
 
                     <button 
                         onClick={handlePlaceOrder} 
-                        disabled={!agreedToTerms || isCreatingOrder} 
-                        className="group w-full bg-white text-black font-black py-8 rounded-[2.5rem] uppercase text-[11px] tracking-[0.5em] flex items-center justify-center gap-3 hover:bg-[#C9A24D] transition-all disabled:opacity-10"
+                        disabled={!agreedToTerms || isCreatingOrder || isInitiatingMpesa} 
+                        className="group w-full bg-white text-black font-black py-8 rounded-[2.5rem] uppercase text-[11px] tracking-[0.5em] flex items-center justify-center gap-3 hover:bg-[#C9A24D] transition-all disabled:opacity-20"
                     >
-                        {isCreatingOrder ? <Loader2 size={18} className="animate-spin" /> : <>Complete Acquisition <ArrowRight size={18}/></>}
+                        {(isCreatingOrder || isInitiatingMpesa) ? <Loader2 size={18} className="animate-spin" /> : <>Complete Acquisition <ArrowRight size={18}/></>}
                     </button>
                     
                     <div className="flex items-center justify-center gap-4 text-white/20">
@@ -317,14 +339,38 @@ const CartPage: React.FC = () => {
       {/* --- PAYMENT MODAL --- */}
       {showPaymentModal && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/95 backdrop-blur-[50px] px-6">
-            <div className="bg-[#0A0A0A] p-16 rounded-[4rem] border border-[#C9A24D]/20 w-full max-w-lg text-center shadow-[0_0_100px_rgba(201,162,77,0.1)]">
-                <Smartphone className="text-[#C9A24D] mx-auto mb-8" size={50} />
-                <h3 className="text-4xl font-serif italic text-white uppercase tracking-tight mb-4">M-Pesa Authorization</h3>
-                <p className="text-white/40 text-[9px] uppercase tracking-[0.4em] mb-12">Registry Ref: {activeOrderId}</p>
-                <div className="space-y-6">
-                  <button onClick={finalizePayment} className="w-full bg-[#3EB035] text-white font-black py-7 rounded-[2rem] uppercase text-[11px] tracking-[0.5em]">Trigger Gateway</button>
-                  <button onClick={() => {setShowPaymentModal(false); navigate("/");}} className="text-[9px] font-black text-white/20 uppercase tracking-[0.5em]">View Later</button>
-                </div>
+            <div className="bg-[#0A0A0A] p-16 rounded-[4rem] border border-[#C9A24D]/20 w-full max-w-lg text-center shadow-[0_0_100px_rgba(201,162,77,0.1)] relative">
+                {!isPaid && (
+                   <button onClick={() => setShowPaymentModal(false)} className="absolute top-8 right-8 text-white/20 hover:text-white transition-all"><X size={20}/></button>
+                )}
+                
+                {isPaid ? (
+                  <div className="animate-in zoom-in duration-500">
+                    <CheckCircle2 className="text-[#3EB035] mx-auto mb-8" size={80} />
+                    <h3 className="text-4xl font-serif italic text-white uppercase tracking-tight mb-4">Acquisition Secured</h3>
+                    <div className="bg-white/5 border border-white/10 rounded-2xl py-4 px-6 mb-8 inline-block">
+                        <p className="text-[8px] text-white/40 uppercase tracking-widest mb-1">M-Pesa Ref</p>
+                        <p className="text-sm font-mono text-[#C9A24D] font-bold">
+                          {paymentStatus?.find((p: any) => p.status === 'success')?.transactionReference || "VERIFIED"}
+                        </p>
+                    </div>
+                    <p className="text-white/40 text-[9px] uppercase tracking-[0.4em]">Redirecting...</p>
+                  </div>
+                ) : (
+                  <>
+                    <Smartphone className="text-[#C9A24D] mx-auto mb-8" size={50} />
+                    <h3 className="text-4xl font-serif italic text-white uppercase tracking-tight mb-4">M-Pesa Authorization</h3>
+                    <p className="text-white/40 text-[9px] uppercase tracking-[0.4em] mb-4">Registry Ref: {activeOrderId?.slice(0, 8)}</p>
+                    <div className="flex items-center justify-center gap-3 text-[#C9A24D] mb-12 animate-pulse">
+                       <Loader2 size={14} className="animate-spin"/>
+                       <span className="text-[8px] font-black uppercase tracking-widest">Awaiting Daraja Signal...</span>
+                    </div>
+                    <div className="space-y-6">
+                      <button onClick={triggerManualCheck} className="w-full border border-white/5 text-white/40 font-black py-7 rounded-[2rem] uppercase text-[9px] tracking-[0.5em] hover:border-[#C9A24D] hover:text-[#C9A24D] transition-all">Manual Verify</button>
+                      <button onClick={() => {setShowPaymentModal(false); navigate("/");}} className="text-[9px] font-black text-white/20 uppercase tracking-[0.5em]">View Receipt Later</button>
+                    </div>
+                  </>
+                )}
             </div>
         </div>
       )}

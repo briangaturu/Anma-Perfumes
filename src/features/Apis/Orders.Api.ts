@@ -34,7 +34,6 @@ export interface IOrder {
   items: IOrderItem[];
 }
 
-// 🎯 Matches your POST {{baseUrl}}/orders payload exactly
 export interface ICreateOrderPayload {
   userId: string;
   branchId: string;
@@ -47,7 +46,7 @@ export interface ICreateOrderPayload {
   shippingFee: number;
   totalAmount: number;
   paymentMethod: string;
-  payment_status: string; // Underscore to match your JSON requirement
+  payment_status: string; 
   items: {
     productId: string;
     variantId: string | null;
@@ -64,7 +63,6 @@ export const orderApi = createApi({
   baseQuery: fetchBaseQuery({ 
     baseUrl: 'http://localhost:5000/api/orders', 
     prepareHeaders: (headers, { getState }) => {
-      // 🔐 Automatically injects token from local storage/auth state
       const token = (getState() as RootState).auth.token;
       if (token) {
         headers.set('authorization', `Bearer ${token}`);
@@ -90,10 +88,10 @@ export const orderApi = createApi({
           : [{ type: 'Order', id: 'LIST' }],
     }),
 
-    // 🛒 1. Place Order (The POST request you provided)
+    // 🛒 1. Place Order
     createOrder: builder.mutation<{ message: string; data: IOrder }, ICreateOrderPayload>({
       query: (orderPayload) => ({
-        url: '/', // Based on your POST {{baseUrl}}/orders
+        url: '/',
         method: 'POST',
         body: orderPayload,
       }),
@@ -133,7 +131,7 @@ export const orderApi = createApi({
           : [{ type: 'Order', id: 'LIST' }],
     }),
 
-    // 💳 5. Update Payment (Synchronizes M-Pesa Receipt)
+    // 💳 5. Update Payment
     updatePaymentStatus: builder.mutation<IOrder, { id: string; paymentStatus: string; mpesaReceiptNumber: string }>({
       query: ({ id, ...body }) => ({
         url: `/payment/${id}`,
@@ -146,7 +144,7 @@ export const orderApi = createApi({
       ],
     }),
 
-    // 🚚 6. Update Status (Pending -> Delivered)
+    // 🚚 6. Update Status
     updateOrderStatus: builder.mutation<IOrder, { id: string; status: string }>({
       query: ({ id, status }) => ({
         url: `/status/${id}`,
@@ -159,7 +157,7 @@ export const orderApi = createApi({
       ],
     }),
 
-    // ❌ 7. Cancel Order
+    // ❌ 7. Cancel Order (Using POST as established)
     cancelOrder: builder.mutation<{ message: string; data: IOrder }, string>({
       query: (id) => ({
         url: `/cancel/${id}`,
@@ -169,6 +167,15 @@ export const orderApi = createApi({
         { type: 'Order', id: 'LIST' },
         { type: 'Order', id },
       ],
+    }),
+
+    // 🗑️ 8. Delete Order (Permanent Removal)
+    deleteOrder: builder.mutation<{ message: string; data: any }, string>({
+      query: (id) => ({
+        url: `/${id}`,
+        method: 'DELETE',
+      }),
+      invalidatesTags: [{ type: 'Order', id: 'LIST' }],
     }),
   }),
 });
@@ -182,4 +189,5 @@ export const {
   useUpdatePaymentStatusMutation,
   useUpdateOrderStatusMutation,
   useCancelOrderMutation,
+  useDeleteOrderMutation, // Export the new hook
 } = orderApi;
